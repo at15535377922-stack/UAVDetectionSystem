@@ -138,7 +138,7 @@ export default function MapView({
     pathsLayerRef.current.clearLayers()
 
     paths.forEach((p) => {
-      const polyline = L.polyline(p.points, {
+      L.polyline(p.points, {
         color: p.color || '#3b82f6',
         weight: p.weight || 3,
         dashArray: p.dashed ? '10, 6' : undefined,
