@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# Node
+node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model weights
+*.pt
+*.onnx
+*.engine
+*.trt
+
+# Data
+*.jpg
+*.jpeg
+*.png
+*.mp4
+*.avi
+!docs/**/*.png
+
+# Logs
+*.log
+runs/
+
+# Docker
+postgres_data/
+minio_data/
