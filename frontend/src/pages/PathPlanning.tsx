@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
-import { MapPin, Trash2, Play, Download, RotateCcw } from 'lucide-react'
+import { MapPin, Trash2, Play, Download, RotateCcw, Loader2 } from 'lucide-react'
 import MapView, { type MapMarker, type MapPath } from '../components/MapView'
+import { planningApi } from '../services/planningApi'
 
 interface WaypointData {
   id: number
@@ -42,41 +43,63 @@ export default function PathPlanning() {
     setPathInfo(null)
   }
 
-  const generatePath = () => {
+  const [generating, setGenerating] = useState(false)
+
+  const generatePath = async () => {
     if (waypoints.length < 2) return
-
-    // Simulate path generation with smooth interpolation
-    const points: [number, number][] = []
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const a = waypoints[i]
-      const b = waypoints[i + 1]
-      const steps = 10
-      for (let s = 0; s <= steps; s++) {
-        const t = s / steps
-        // Add slight curve for visual appeal
-        const jitter = Math.sin(t * Math.PI) * 0.0005
-        points.push([
-          a.lat + (b.lat - a.lat) * t + jitter,
-          a.lng + (b.lng - a.lng) * t + jitter,
-        ])
+    setGenerating(true)
+    try {
+      const wpCoords = waypoints.map((w) => [w.lat, w.lng])
+      const res = await planningApi.generate({
+        algorithm,
+        waypoints: wpCoords,
+        altitude,
+        speed,
+      })
+      // Convert path from API to [lat, lng] tuples
+      const points: [number, number][] = res.path.map((p) => [p[0], p[1]] as [number, number])
+      setPlannedPath(points)
+      setPathInfo({
+        distance: res.total_distance_m.toFixed(0) + ' m',
+        waypoints: res.waypoints_count.toString(),
+        time: res.estimated_time_s > 60
+          ? (res.estimated_time_s / 60).toFixed(1) + ' min'
+          : res.estimated_time_s.toFixed(0) + ' s',
+        planTime: res.planning_time_ms.toFixed(1) + ' ms',
+      })
+    } catch {
+      // Fallback to client-side generation if API unavailable
+      const points: [number, number][] = []
+      for (let i = 0; i < waypoints.length - 1; i++) {
+        const a = waypoints[i]
+        const b = waypoints[i + 1]
+        const steps = 10
+        for (let s = 0; s <= steps; s++) {
+          const t = s / steps
+          const jitter = Math.sin(t * Math.PI) * 0.0005
+          points.push([
+            a.lat + (b.lat - a.lat) * t + jitter,
+            a.lng + (b.lng - a.lng) * t + jitter,
+          ])
+        }
       }
-    }
-    setPlannedPath(points)
+      setPlannedPath(points)
 
-    // Calculate mock stats
-    let totalDist = 0
-    for (let i = 1; i < waypoints.length; i++) {
-      const dx = (waypoints[i].lat - waypoints[i - 1].lat) * 111320
-      const dy = (waypoints[i].lng - waypoints[i - 1].lng) * 111320 * 0.85
-      totalDist += Math.sqrt(dx * dx + dy * dy)
+      let totalDist = 0
+      for (let i = 1; i < waypoints.length; i++) {
+        const dx = (waypoints[i].lat - waypoints[i - 1].lat) * 111320
+        const dy = (waypoints[i].lng - waypoints[i - 1].lng) * 111320 * 0.85
+        totalDist += Math.sqrt(dx * dx + dy * dy)
+      }
+      setPathInfo({
+        distance: totalDist.toFixed(0) + ' m',
+        waypoints: waypoints.length.toString(),
+        time: (totalDist / speed / 60).toFixed(1) + ' min',
+        planTime: '— (离线)',
+      })
+    } finally {
+      setGenerating(false)
     }
-
-    setPathInfo({
-      distance: totalDist.toFixed(0) + ' m',
-      waypoints: waypoints.length.toString(),
-      time: (totalDist / speed / 60).toFixed(1) + ' min',
-      planTime: (Math.random() * 50 + 10).toFixed(1) + ' ms',
-    })
   }
 
   const markers: MapMarker[] = waypoints.map((w, i) => ({
@@ -142,10 +165,10 @@ export default function PathPlanning() {
           <div className="flex items-end gap-2">
             <button
               onClick={generatePath}
-              disabled={waypoints.length < 2}
+              disabled={waypoints.length < 2 || generating}
               className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Play className="w-4 h-4" /> 生成路径
+              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} {generating ? '规划中...' : '生成路径'}
             </button>
             <button
               onClick={clearAll}

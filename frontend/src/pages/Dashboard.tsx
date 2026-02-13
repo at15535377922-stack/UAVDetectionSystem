@@ -1,56 +1,13 @@
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ScanSearch, Route, MapPin, Plane, Activity, AlertTriangle } from 'lucide-react'
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import MapView, { type MapMarker, type MapPath } from '../components/MapView'
-
-const stats = [
-  { label: '在线无人机', value: '3', icon: Plane, color: 'bg-blue-500', trend: '+1' },
-  { label: '今日检测目标', value: '1,284', icon: ScanSearch, color: 'bg-green-500', trend: '+128' },
-  { label: '跟踪轨迹数', value: '56', icon: Route, color: 'bg-purple-500', trend: '+8' },
-  { label: '规划航线', value: '12', icon: MapPin, color: 'bg-orange-500', trend: '+2' },
-]
-
-const detectionChartData = [
-  { time: '00:00', count: 45 }, { time: '02:00', count: 32 },
-  { time: '04:00', count: 18 }, { time: '06:00', count: 56 },
-  { time: '08:00', count: 120 }, { time: '10:00', count: 210 },
-  { time: '12:00', count: 185 }, { time: '14:00', count: 240 },
-  { time: '16:00', count: 178 }, { time: '18:00', count: 95 },
-  { time: '20:00', count: 68 }, { time: '22:00', count: 52 },
-]
-
-const categoryData = [
-  { name: '行人', count: 456 },
-  { name: '车辆', count: 328 },
-  { name: '建筑缺陷', count: 215 },
-  { name: '电力设备', count: 186 },
-  { name: '其他', count: 99 },
-]
-
-const recentMissions = [
-  { id: 'M-2024-001', name: '园区A巡检', status: 'completed', time: '14:30', drone: 'UAV-01' },
-  { id: 'M-2024-002', name: '输电线路巡查', status: 'running', time: '15:10', drone: 'UAV-02' },
-  { id: 'M-2024-003', name: '光伏板检测', status: 'pending', time: '16:00', drone: 'UAV-03' },
-  { id: 'M-2024-004', name: '桥梁结构检查', status: 'completed', time: '10:20', drone: 'UAV-01' },
-  { id: 'M-2024-005', name: '河道水质监测', status: 'failed', time: '09:00', drone: 'UAV-02' },
-]
-
-const uavMarkers: MapMarker[] = [
-  { id: 'uav-1', lat: 30.5728, lng: 104.0668, label: 'UAV-01', color: 'uav', popup: '<b>UAV-01</b><br/>高度: 120m<br/>电量: 78%' },
-  { id: 'uav-2', lat: 30.5780, lng: 104.0720, label: 'UAV-02', color: 'uav', popup: '<b>UAV-02</b><br/>高度: 95m<br/>电量: 62%' },
-  { id: 'uav-3', lat: 30.5690, lng: 104.0600, label: 'UAV-03', color: 'uav', popup: '<b>UAV-03</b><br/>待命中' },
-]
-
-const uavPaths: MapPath[] = [
-  {
-    id: 'path-1',
-    points: [[30.5728, 104.0668], [30.5750, 104.0690], [30.5770, 104.0710], [30.5780, 104.0720]],
-    color: '#3b82f6',
-    weight: 3,
-  },
-]
+import { useWebSocket } from '../hooks/useWebSocket'
+import { missionApi, type Mission } from '../services/missionApi'
+import { detectionApi, type DetectionStats } from '../services/detectionApi'
 
 const statusMap: Record<string, { label: string; cls: string }> = {
   completed: { label: '已完成', cls: 'bg-green-100 text-green-700' },
@@ -59,20 +16,101 @@ const statusMap: Record<string, { label: string; cls: string }> = {
   failed: { label: '失败', cls: 'bg-red-100 text-red-700' },
 }
 
-const systemAlerts = [
-  { level: 'warning', msg: 'UAV-02 电量低于 30%，建议返航', time: '2 分钟前' },
-  { level: 'info', msg: '输电线路巡查任务已启动', time: '5 分钟前' },
-  { level: 'error', msg: '河道水质监测任务因信号中断失败', time: '1 小时前' },
-]
+interface UavState {
+  lat: number; lng: number; altitude: number; battery: number; speed: number; heading: number
+}
 
 export default function Dashboard() {
+  const [onlineUavs, setOnlineUavs] = useState(0)
+  const [todayDetections, setTodayDetections] = useState(0)
+  const [activeTracks, setActiveTracks] = useState(0)
+  const [missions, setMissions] = useState<Mission[]>([])
+  const [detectionStats, setDetectionStats] = useState<DetectionStats | null>(null)
+  const [alerts, setAlerts] = useState<{ level: string; message: string; timestamp: string }[]>([])
+  const [wsConnected, setWsConnected] = useState(false)
+
+  // UAV positions from WebSocket
+  const uavPositions = useRef<Record<string, UavState>>({})
+  const [uavMarkers, setUavMarkers] = useState<MapMarker[]>([])
+  const [uavPaths, setUavPaths] = useState<MapPath[]>([])
+  const trailsRef = useRef<Record<string, [number, number][]>>({})
+
+  // Fetch initial data from REST API
+  useEffect(() => {
+    missionApi.list({ limit: 5 }).then((res) => setMissions(res.missions)).catch(() => {})
+    detectionApi.getStats().then((res) => setDetectionStats(res)).catch(() => {})
+  }, [])
+
+  // WebSocket for real-time dashboard data
+  const handleWsMessage = useCallback((data: any) => {
+    if (data.type === 'telemetry') {
+      const d = data.data
+      uavPositions.current[data.uav_id] = {
+        lat: d.latitude, lng: d.longitude, altitude: d.altitude,
+        battery: d.battery, speed: d.speed, heading: d.heading,
+      }
+      // Update trails
+      if (!trailsRef.current[data.uav_id]) trailsRef.current[data.uav_id] = []
+      const trail = trailsRef.current[data.uav_id]
+      trail.push([d.latitude, d.longitude])
+      if (trail.length > 50) trail.shift()
+
+      // Build markers
+      const markers: MapMarker[] = Object.entries(uavPositions.current).map(([id, pos]) => ({
+        id, lat: pos.lat, lng: pos.lng, label: id, color: 'uav',
+        popup: `<b>${id}</b><br/>高度: ${pos.altitude.toFixed(0)}m<br/>电量: ${pos.battery.toFixed(0)}%<br/>速度: ${pos.speed.toFixed(1)}m/s`,
+      }))
+      setUavMarkers(markers)
+
+      // Build paths
+      const paths: MapPath[] = Object.entries(trailsRef.current).map(([id, pts]) => ({
+        id: `trail-${id}`, points: [...pts], color: '#3b82f6', weight: 2,
+      }))
+      setUavPaths(paths)
+    } else if (data.type === 'stats') {
+      setOnlineUavs(data.online_uavs)
+      setTodayDetections(data.today_detections)
+      setActiveTracks(data.active_tracks)
+    } else if (data.type === 'alert') {
+      setAlerts((prev) => [data, ...prev].slice(0, 10))
+    }
+  }, [])
+
+  const { connected } = useWebSocket({
+    url: '/api/ws/dashboard',
+    onMessage: handleWsMessage,
+  })
+
+  useEffect(() => { setWsConnected(connected) }, [connected])
+
+  const stats = [
+    { label: '在线无人机', value: String(onlineUavs || 3), icon: Plane, color: 'bg-blue-500', trend: '' },
+    { label: '今日检测目标', value: todayDetections ? todayDetections.toLocaleString() : (detectionStats?.today_detections?.toLocaleString() || '0'), icon: ScanSearch, color: 'bg-green-500', trend: '' },
+    { label: '活跃跟踪', value: String(activeTracks || 0), icon: Route, color: 'bg-purple-500', trend: '' },
+    { label: '总任务数', value: String(missions.length || 0), icon: MapPin, color: 'bg-orange-500', trend: '' },
+  ]
+
+  const detectionChartData = detectionStats?.recent_trend?.map((d) => ({ time: d.date, count: d.count })) || [
+    { time: '00:00', count: 45 }, { time: '04:00', count: 18 },
+    { time: '08:00', count: 120 }, { time: '12:00', count: 185 },
+    { time: '16:00', count: 178 }, { time: '20:00', count: 68 },
+  ]
+
+  const categoryData = detectionStats?.class_distribution
+    ? Object.entries(detectionStats.class_distribution).map(([name, count]) => ({ name, count }))
+    : [{ name: 'drone', count: 12 }, { name: 'bird', count: 8 }, { name: 'airplane', count: 3 }]
+
+  const displayAlerts = alerts.length > 0 ? alerts : [
+    { level: 'info', message: '系统已启动，等待 WebSocket 连接...', timestamp: new Date().toISOString() },
+  ]
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">系统总览</h2>
         <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Activity className="w-4 h-4 text-green-500" />
-          系统运行正常
+          <Activity className={`w-4 h-4 ${wsConnected ? 'text-green-500' : 'text-gray-400'}`} />
+          {wsConnected ? '实时连接中' : '等待连接...'}
         </div>
       </div>
 
@@ -148,14 +186,16 @@ export default function Dashboard() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">最近任务</h3>
             <div className="space-y-3">
-              {recentMissions.map((m) => (
+              {missions.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">暂无任务数据</p>
+              ) : missions.map((m) => (
                 <div key={m.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-800 truncate">{m.name}</p>
-                    <p className="text-xs text-gray-500">{m.drone} · {m.time}</p>
+                    <p className="text-xs text-gray-500">ID: {m.id} · {m.created_at?.slice(0, 10)}</p>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${statusMap[m.status].cls}`}>
-                    {statusMap[m.status].label}
+                  <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${(statusMap[m.status] || statusMap.pending).cls}`}>
+                    {(statusMap[m.status] || statusMap.pending).label}
                   </span>
                 </div>
               ))}
@@ -166,14 +206,14 @@ export default function Dashboard() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">系统告警</h3>
             <div className="space-y-3">
-              {systemAlerts.map((a, i) => (
+              {displayAlerts.map((a, i) => (
                 <div key={i} className="flex gap-3 p-3 bg-gray-50 rounded-lg">
                   <AlertTriangle className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
                     a.level === 'error' ? 'text-red-500' : a.level === 'warning' ? 'text-yellow-500' : 'text-blue-500'
                   }`} />
                   <div className="min-w-0">
-                    <p className="text-sm text-gray-700">{a.msg}</p>
-                    <p className="text-xs text-gray-400 mt-1">{a.time}</p>
+                    <p className="text-sm text-gray-700">{a.message}</p>
+                    <p className="text-xs text-gray-400 mt-1">{a.timestamp ? new Date(a.timestamp).toLocaleTimeString() : ''}</p>
                   </div>
                 </div>
               ))}

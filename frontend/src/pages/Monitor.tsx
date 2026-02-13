@@ -1,71 +1,69 @@
-import { useState, useEffect } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Battery, Wifi, Navigation, Gauge, Satellite, Radio, Circle } from 'lucide-react'
 import MapView, { type MapMarker, type MapPath } from '../components/MapView'
+import { useWebSocket } from '../hooks/useWebSocket'
 
-interface TelemetryItem {
-  label: string
-  value: string
-  icon: typeof Battery
-  color: string
-  unit?: string
+interface TelemetryData {
+  latitude: number; longitude: number; altitude: number
+  speed: number; heading: number; battery: number
+  satellites: number; signal_strength: number; flight_mode: string
 }
-
-const mockTelemetry: TelemetryItem[] = [
-  { label: '飞行高度', value: '120', icon: Navigation, color: 'text-blue-500', unit: 'm' },
-  { label: '飞行速度', value: '8.5', icon: Gauge, color: 'text-green-500', unit: 'm/s' },
-  { label: '电池电量', value: '78', icon: Battery, color: 'text-yellow-500', unit: '%' },
-  { label: 'GPS 卫星', value: '14', icon: Satellite, color: 'text-purple-500', unit: '颗' },
-  { label: '信号强度', value: '-65', icon: Wifi, color: 'text-cyan-500', unit: 'dBm' },
-  { label: '通信延迟', value: '32', icon: Radio, color: 'text-orange-500', unit: 'ms' },
-]
 
 export default function Monitor() {
   const [selectedUav, setSelectedUav] = useState('UAV-01')
-  const [telemetry, setTelemetry] = useState(mockTelemetry)
-
-  // Simulate telemetry updates
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTelemetry((prev) =>
-        prev.map((t) => {
-          if (t.label === '飞行高度') return { ...t, value: (120 + Math.random() * 5 - 2.5).toFixed(1) }
-          if (t.label === '飞行速度') return { ...t, value: (8.5 + Math.random() * 2 - 1).toFixed(1) }
-          if (t.label === '通信延迟') return { ...t, value: Math.floor(28 + Math.random() * 15).toString() }
-          return t
-        })
-      )
-    }, 2000)
-    return () => clearInterval(timer)
-  }, [])
+  const [telemetryMap, setTelemetryMap] = useState<Record<string, TelemetryData>>({})
+  const trailsRef = useRef<Record<string, [number, number][]>>({})
+  const [markers, setMarkers] = useState<MapMarker[]>([])
+  const [paths, setPaths] = useState<MapPath[]>([])
 
   const uavList = [
-    { id: 'UAV-01', status: 'flying', battery: 78, mode: '自主巡航' },
-    { id: 'UAV-02', status: 'flying', battery: 62, mode: '定点悬停' },
-    { id: 'UAV-03', status: 'idle', battery: 95, mode: '待命' },
+    { id: 'UAV-01', status: 'flying', mode: '自主巡航' },
+    { id: 'UAV-02', status: 'flying', mode: '定点悬停' },
+    { id: 'UAV-03', status: 'idle', mode: '待命' },
   ]
 
-  const uavMarkers: MapMarker[] = [
-    { id: 'uav-1', lat: 30.5728, lng: 104.0668, label: 'UAV-01', color: 'uav', popup: '<b>UAV-01</b><br/>自主巡航中' },
-    { id: 'uav-2', lat: 30.5780, lng: 104.0720, label: 'UAV-02', color: 'uav', popup: '<b>UAV-02</b><br/>定点悬停' },
-    { id: 'uav-3', lat: 30.5690, lng: 104.0600, label: 'UAV-03', color: '#9ca3af', popup: '<b>UAV-03</b><br/>待命中' },
-  ]
+  const handleWsMessage = useCallback((data: any) => {
+    if (data.type === 'telemetry') {
+      const d = data.data as TelemetryData
+      setTelemetryMap((prev) => ({ ...prev, [data.uav_id]: d }))
 
-  const flightPath: MapPath[] = [
-    {
-      id: 'trail-1',
-      points: [
-        [30.5700, 104.0630], [30.5710, 104.0645], [30.5718, 104.0655],
-        [30.5728, 104.0668], [30.5735, 104.0678],
-      ],
-      color: '#3b82f6', weight: 3,
-    },
-    {
-      id: 'trail-2',
-      points: [
-        [30.5760, 104.0700], [30.5770, 104.0710], [30.5780, 104.0720],
-      ],
-      color: '#10b981', weight: 3, dashed: true,
-    },
+      // Update trail
+      if (!trailsRef.current[data.uav_id]) trailsRef.current[data.uav_id] = []
+      const trail = trailsRef.current[data.uav_id]
+      trail.push([d.latitude, d.longitude])
+      if (trail.length > 80) trail.shift()
+
+      // Rebuild markers & paths for all UAVs
+      setTelemetryMap((latest) => {
+        const newMarkers: MapMarker[] = Object.entries(latest).map(([id, pos]) => ({
+          id, lat: pos.latitude, lng: pos.longitude, label: id, color: 'uav',
+          popup: `<b>${id}</b><br/>高度: ${pos.altitude.toFixed(0)}m<br/>电量: ${pos.battery.toFixed(0)}%`,
+        }))
+        setMarkers(newMarkers)
+
+        const newPaths: MapPath[] = Object.entries(trailsRef.current).map(([id, pts]) => ({
+          id: `trail-${id}`, points: [...pts], color: id === selectedUav ? '#3b82f6' : '#9ca3af', weight: id === selectedUav ? 3 : 2,
+        }))
+        setPaths(newPaths)
+        return latest
+      })
+    }
+  }, [selectedUav])
+
+  const { connected } = useWebSocket({
+    url: '/api/ws/dashboard',
+    onMessage: handleWsMessage,
+  })
+
+  const currentTelemetry = telemetryMap[selectedUav]
+
+  const telemetryItems = [
+    { label: '飞行高度', value: currentTelemetry?.altitude?.toFixed(1) || '—', icon: Navigation, color: 'text-blue-500', unit: 'm' },
+    { label: '飞行速度', value: currentTelemetry?.speed?.toFixed(1) || '—', icon: Gauge, color: 'text-green-500', unit: 'm/s' },
+    { label: '电池电量', value: currentTelemetry?.battery?.toFixed(0) || '—', icon: Battery, color: 'text-yellow-500', unit: '%' },
+    { label: 'GPS 卫星', value: currentTelemetry?.satellites?.toString() || '—', icon: Satellite, color: 'text-purple-500', unit: '颗' },
+    { label: '信号强度', value: currentTelemetry?.signal_strength?.toString() || '—', icon: Wifi, color: 'text-cyan-500', unit: 'dBm' },
+    { label: '航向角', value: currentTelemetry?.heading?.toFixed(0) || '—', icon: Radio, color: 'text-orange-500', unit: '°' },
   ]
 
   return (
@@ -118,7 +116,7 @@ export default function Monitor() {
               REC ●
             </div>
             <div className="absolute bottom-3 left-3 text-xs text-white/70 font-mono z-10">
-              30.5728°N, 104.0668°E | ALT 120m
+              {currentTelemetry ? `${currentTelemetry.latitude.toFixed(4)}°N, ${currentTelemetry.longitude.toFixed(4)}°E | ALT ${currentTelemetry.altitude.toFixed(0)}m` : '等待连接...'}
             </div>
           </div>
         </div>
@@ -127,7 +125,7 @@ export default function Monitor() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">遥测数据</h3>
           <div className="space-y-4">
-            {telemetry.map((t) => (
+            {telemetryItems.map((t) => (
               <div key={t.label} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                 <t.icon className={`w-5 h-5 ${t.color}`} />
                 <div className="flex-1">
@@ -153,8 +151,8 @@ export default function Monitor() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">实时地图</h3>
         <MapView
-          markers={uavMarkers}
-          paths={flightPath}
+          markers={markers}
+          paths={paths}
           className="h-96"
         />
       </div>

@@ -45,6 +45,9 @@ Thumbs.db
 *.log
 runs/
 
+# SQLite dev database
+*.db
+
 # Docker
 postgres_data/
 minio_data/

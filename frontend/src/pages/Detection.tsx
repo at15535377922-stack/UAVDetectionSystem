@@ -1,4 +1,66 @@
+import { useState, useRef, useEffect } from 'react'
+import { Upload, Play, Square, Loader2 } from 'lucide-react'
+import { detectionApi, type DetectionResult, type DetectionBox } from '../services/detectionApi'
+
 export default function Detection() {
+  const [modelName, setModelName] = useState('yolov8n')
+  const [confidence, setConfidence] = useState(0.5)
+  const [loading, setLoading] = useState(false)
+  const [detections, setDetections] = useState<DetectionBox[]>([])
+  const [resultInfo, setResultInfo] = useState<string | null>(null)
+  const [history, setHistory] = useState<DetectionResult[]>([])
+  const [streamSession, setStreamSession] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Load recent results
+  useEffect(() => {
+    detectionApi.listResults({ limit: 10 }).then(setHistory).catch(() => {})
+  }, [])
+
+  const handleUpload = async () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLoading(true)
+    setDetections([])
+    setResultInfo(null)
+    try {
+      const result = await detectionApi.detectImage(file, { model_name: modelName, confidence })
+      setDetections(result.detections || [])
+      setResultInfo(`检测完成 — 模型: ${result.model_name}, 目标数: ${result.detections?.length || 0}`)
+      setHistory((prev) => [result, ...prev].slice(0, 10))
+    } catch (err: any) {
+      setResultInfo('检测失败: ' + (err.response?.data?.detail || err.message))
+    } finally {
+      setLoading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleStartStream = async () => {
+    try {
+      const res = await detectionApi.startStream({ model_name: modelName, confidence })
+      setStreamSession(res.session_id)
+      setResultInfo(`实时检测已启动 — 会话: ${res.session_id}`)
+    } catch (err: any) {
+      setResultInfo('启动失败: ' + (err.response?.data?.detail || err.message))
+    }
+  }
+
+  const handleStopStream = async () => {
+    if (!streamSession) return
+    try {
+      await detectionApi.stopStream(streamSession)
+      setResultInfo('实时检测已停止')
+      setStreamSession(null)
+    } catch {
+      setResultInfo('停止失败')
+    }
+  }
+
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold text-gray-800 mb-6">目标检测</h2>
@@ -6,37 +68,75 @@ export default function Detection() {
       {/* Controls */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
         <div className="flex items-center gap-4 flex-wrap">
-          <select className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option>YOLOv8n</option>
-            <option>YOLOv8s</option>
-            <option>YOLOv8m</option>
-            <option>YOLOv11n</option>
-            <option>YOLOv11s</option>
+          <select
+            value={modelName}
+            onChange={(e) => setModelName(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="yolov8n">YOLOv8n</option>
+            <option value="yolov8s">YOLOv8s</option>
+            <option value="yolov8m">YOLOv8m</option>
+            <option value="yolov11n">YOLOv11n</option>
+            <option value="yolov11s">YOLOv11s</option>
           </select>
           <input
             type="number"
-            placeholder="置信度阈值 (0.5)"
+            value={confidence}
+            onChange={(e) => setConfidence(Number(e.target.value))}
             className="px-4 py-2 border border-gray-300 rounded-lg text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            defaultValue={0.5}
             min={0}
             max={1}
             step={0.05}
           />
-          <button className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors">
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+          <button
+            onClick={handleUpload}
+            disabled={loading}
+            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             上传图片检测
           </button>
-          <button className="px-6 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors">
-            开启实时检测
-          </button>
+          {!streamSession ? (
+            <button
+              onClick={handleStartStream}
+              className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors"
+            >
+              <Play className="w-4 h-4" /> 开启实时检测
+            </button>
+          ) : (
+            <button
+              onClick={handleStopStream}
+              className="flex items-center gap-2 px-6 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition-colors"
+            >
+              <Square className="w-4 h-4" /> 停止检测
+            </button>
+          )}
         </div>
+        {resultInfo && <p className="text-sm text-gray-500 mt-3">{resultInfo}</p>}
       </div>
 
       {/* Detection result area */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">检测画面</h3>
-          <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
-            上传图片或开启视频流后显示检测结果
+          <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 relative">
+            {detections.length > 0 ? (
+              <div className="w-full h-full p-4">
+                <p className="text-sm text-gray-600 mb-2">检测到 {detections.length} 个目标</p>
+                <div className="space-y-2">
+                  {detections.map((d, i) => (
+                    <div key={i} className="flex items-center gap-2 p-2 bg-blue-50 rounded">
+                      <span className="w-3 h-3 rounded-full bg-blue-500" />
+                      <span className="text-sm font-medium">{d.class_name}</span>
+                      <span className="text-xs text-gray-500 ml-auto">{(d.confidence * 100).toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              '上传图片或开启视频流后显示检测结果'
+            )}
           </div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -52,16 +152,50 @@ export default function Detection() {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td colSpan={4} className="py-8 text-center text-gray-400">
-                    暂无检测结果
-                  </td>
-                </tr>
+                {detections.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-gray-400">
+                      暂无检测结果
+                    </td>
+                  </tr>
+                ) : (
+                  detections.map((d, i) => (
+                    <tr key={i} className="border-b border-gray-100">
+                      <td className="py-3 px-2 text-gray-800">{i + 1}</td>
+                      <td className="py-3 px-2">
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">{d.class_name}</span>
+                      </td>
+                      <td className="py-3 px-2 text-gray-700">{(d.confidence * 100).toFixed(1)}%</td>
+                      <td className="py-3 px-2 text-gray-500 text-xs font-mono">
+                        [{d.x1.toFixed(0)}, {d.y1.toFixed(0)}, {d.x2.toFixed(0)}, {d.y2.toFixed(0)}]
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </div>
       </div>
+
+      {/* History */}
+      {history.length > 0 && (
+        <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">历史记录</h3>
+          <div className="space-y-2">
+            {history.map((r) => (
+              <div key={r.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <span className="text-sm font-medium text-gray-800">#{r.id}</span>
+                  <span className="text-xs text-gray-500 ml-3">{r.model_name}</span>
+                  <span className="text-xs text-gray-500 ml-3">{r.detections?.length || 0} 个目标</span>
+                </div>
+                <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

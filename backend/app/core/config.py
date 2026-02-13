@@ -5,7 +5,9 @@ class Settings(BaseSettings):
     APP_NAME: str = "UAV Detection System"
     DEBUG: bool = True
 
+    USE_SQLITE: bool = True  # Set False in production to use PostgreSQL
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/uav_detection"
+    SQLITE_URL: str = "sqlite+aiosqlite:///./uav_dev.db"
     REDIS_URL: str = "redis://localhost:6379/0"
 
     MINIO_ENDPOINT: str = "localhost:9000"
