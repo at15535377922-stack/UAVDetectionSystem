@@ -376,10 +376,18 @@ UAVDetectionSystem/
 - [x] 前端全局 API 错误处理（429/500 自动 Toast 弹出）
 - [x] 添加 numpy / Pillow 依赖，ONNX Runtime 可选安装
 
+### 第十一阶段：飞控通信 + 航线下发 ✅
+
+- [x] MAVLink 飞控通信服务层（pymavlink 真实接口 + 模拟降级）
+- [x] UAV 连接管理（多机连接、遥测、任务上传）
+- [x] 飞控 API 端点（连接/断开、解锁/上锁、起飞/降落/返航/悬停/航线下发）
+- [x] 前端 flightApi 服务层
+- [x] PathPlanning 航线下发功能对接（一键下发至 UAV）
+- [x] Monitor 页面飞控指令面板（起飞/降落/返航/悬停按钮）
+
 ### 后续规划
 
 - [ ] 数据集采集与 YOLOv8/v11 模型训练
-- [ ] 飞控通信集成（MAVLink 航线下发与遥测）
 - [ ] 仿真环境测试（AirSim / Gazebo）
 - [ ] 生产环境部署
 

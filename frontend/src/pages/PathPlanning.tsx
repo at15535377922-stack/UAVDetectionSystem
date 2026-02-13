@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react'
 import { MapPin, Trash2, Play, Download, RotateCcw, Loader2 } from 'lucide-react'
 import MapView, { type MapMarker, type MapPath } from '../components/MapView'
 import { planningApi } from '../services/planningApi'
+import { flightApi } from '../services/flightApi'
+import { useToast } from '../components/Toast'
 
 interface WaypointData {
   id: number
@@ -27,6 +29,8 @@ export default function PathPlanning() {
     distance: string; waypoints: string; time: string; planTime: string
   } | null>(null)
   const [nextId, setNextId] = useState(1)
+  const [uploading, setUploading] = useState(false)
+  const toast = useToast()
 
   const handleMapClick = useCallback((lat: number, lng: number) => {
     setWaypoints((prev) => [...prev, { id: nextId, lat, lng }])
@@ -99,6 +103,30 @@ export default function PathPlanning() {
       })
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const handleUploadMission = async () => {
+    if (waypoints.length < 2) return
+    setUploading(true)
+    try {
+      // Connect to default UAV first, then upload
+      const uavId = 'UAV-01'
+      await flightApi.connect(uavId)
+      await flightApi.arm(uavId)
+      await flightApi.takeoff(uavId, altitude)
+      const wpData = waypoints.map((w) => ({ lat: w.lat, lng: w.lng }))
+      const res = await flightApi.uploadMission(uavId, wpData, altitude, speed)
+      if (res.success) {
+        await flightApi.startMission(uavId)
+        toast.success(`航线已下发至 ${uavId}，共 ${wpData.length} 个航点`)
+      } else {
+        toast.error(res.error || '航线下发失败')
+      }
+    } catch (err: any) {
+      toast.error('航线下发失败: ' + (err.response?.data?.detail || err.message))
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -177,10 +205,12 @@ export default function PathPlanning() {
               <RotateCcw className="w-4 h-4" /> 清除
             </button>
             <button
-              disabled={!pathInfo}
+              onClick={handleUploadMission}
+              disabled={!pathInfo || uploading}
               className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Download className="w-4 h-4" /> 下发航线
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {uploading ? '下发中...' : '下发航线'}
             </button>
           </div>
         </div>

@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Battery, Wifi, Navigation, Gauge, Satellite, Radio, Circle, Loader2 } from 'lucide-react'
+import { Battery, Wifi, Navigation, Gauge, Satellite, Radio, Circle, Loader2, PlaneTakeoff, PlaneLanding, RotateCcw, Pause } from 'lucide-react'
 import MapView, { type MapMarker, type MapPath } from '../components/MapView'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { deviceApi, type Device } from '../services/deviceApi'
+import { flightApi } from '../services/flightApi'
+import { useToast } from '../components/Toast'
 
 interface TelemetryData {
   latitude: number; longitude: number; altitude: number
@@ -18,6 +20,26 @@ export default function Monitor() {
   const trailsRef = useRef<Record<string, [number, number][]>>({})
   const [markers, setMarkers] = useState<MapMarker[]>([])
   const [paths, setPaths] = useState<MapPath[]>([])
+  const [cmdLoading, setCmdLoading] = useState(false)
+  const toast = useToast()
+
+  const sendFlightCmd = async (cmd: () => Promise<any>, label: string) => {
+    setCmdLoading(true)
+    try {
+      const uavId = selectedUav || 'UAV-01'
+      await flightApi.connect(uavId)
+      const res = await cmd()
+      if (res.success) {
+        toast.success(`${label} 成功`)
+      } else {
+        toast.error(res.error || `${label} 失败`)
+      }
+    } catch (err: any) {
+      toast.error(`${label} 失败: ` + (err.response?.data?.detail || err.message))
+    } finally {
+      setCmdLoading(false)
+    }
+  }
 
   // Fetch devices from API, fallback to hardcoded list
   useEffect(() => {
@@ -173,6 +195,42 @@ export default function Monitor() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Flight commands */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">飞控指令</h3>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => sendFlightCmd(() => flightApi.takeoff(selectedUav || 'UAV-01', 10), '起飞')}
+            disabled={cmdLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors disabled:opacity-50"
+          >
+            <PlaneTakeoff className="w-4 h-4" /> 起飞
+          </button>
+          <button
+            onClick={() => sendFlightCmd(() => flightApi.land(selectedUav || 'UAV-01'), '降落')}
+            disabled={cmdLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 transition-colors disabled:opacity-50"
+          >
+            <PlaneLanding className="w-4 h-4" /> 降落
+          </button>
+          <button
+            onClick={() => sendFlightCmd(() => flightApi.rtl(selectedUav || 'UAV-01'), '返航')}
+            disabled={cmdLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            <RotateCcw className="w-4 h-4" /> 返航
+          </button>
+          <button
+            onClick={() => sendFlightCmd(() => flightApi.hover(selectedUav || 'UAV-01'), '悬停')}
+            disabled={cmdLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg text-sm hover:bg-yellow-700 transition-colors disabled:opacity-50"
+          >
+            <Pause className="w-4 h-4" /> 悬停
+          </button>
+        </div>
+        {cmdLoading && <p className="text-xs text-gray-400 mt-2">指令发送中...</p>}
       </div>
 
       {/* Map */}
