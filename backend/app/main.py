@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, missions, devices, detections, tracking, planning
+from app.api import auth, missions, devices, detections, tracking, planning, settings
 from app.api.websocket import router as ws_router
 from app.core.database import engine, Base
 
@@ -40,6 +40,7 @@ app.include_router(devices.router, prefix="/api/devices", tags=["设备管理"])
 app.include_router(detections.router, prefix="/api/detections", tags=["目标检测"])
 app.include_router(tracking.router, prefix="/api/tracking", tags=["目标跟踪"])
 app.include_router(planning.router, prefix="/api/planning", tags=["路径规划"])
+app.include_router(settings.router, prefix="/api/settings", tags=["系统设置"])
 
 # WebSocket router
 app.include_router(ws_router, prefix="/api/ws", tags=["WebSocket"])

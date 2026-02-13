@@ -50,7 +50,7 @@ export default function Monitor() {
     }
   }, [selectedUav])
 
-  const { connected } = useWebSocket({
+  const { connected: _wsConnected } = useWebSocket({
     url: '/api/ws/dashboard',
     onMessage: handleWsMessage,
   })

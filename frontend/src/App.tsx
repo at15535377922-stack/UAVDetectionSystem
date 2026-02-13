@@ -1,5 +1,8 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
+import AuthGuard from './components/AuthGuard'
+import Login from './pages/Login'
+import NotFound from './pages/NotFound'
 import Dashboard from './pages/Dashboard'
 import Monitor from './pages/Monitor'
 import Detection from './pages/Detection'
@@ -11,7 +14,15 @@ import Settings from './pages/Settings'
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<Layout />}>
+      <Route path="/login" element={<Login />} />
+      <Route
+        path="/"
+        element={
+          <AuthGuard>
+            <Layout />
+          </AuthGuard>
+        }
+      >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="monitor" element={<Monitor />} />
@@ -21,6 +32,7 @@ function App() {
         <Route path="mission" element={<Mission />} />
         <Route path="settings" element={<Settings />} />
       </Route>
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }

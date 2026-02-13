@@ -299,58 +299,47 @@ UAVDetectionSystem/
 
 ## 7. 实施计划
 
-### 第一阶段：基础框架与环境搭建（第 1-2 周）
+### 第一阶段：基础框架与环境搭建 ✅
 
 - [x] 项目初始化与目录结构搭建
-- [ ] 前端脚手架搭建（React + Vite + TailwindCSS + Leaflet）
-- [ ] 后端 FastAPI 项目初始化，数据库模型设计
-- [ ] Docker Compose 开发环境（PostgreSQL + Redis + MinIO）
-- [ ] CI/CD 流水线搭建
+- [x] 前端脚手架搭建（React + Vite + TailwindCSS + Leaflet）
+- [x] 后端 FastAPI 项目初始化，数据库模型设计
+- [x] Docker Compose 开发环境（PostgreSQL + Redis + MinIO）
+- [x] 目标检测 / 目标跟踪 / 路径规划 / 飞控通信 核心模块框架
 
-### 第二阶段：目标检测模块开发（第 3-6 周）
+### 第二阶段：前后端完整功能开发 ✅
 
-- [ ] 数据集采集、清洗与标注（LabelImg / Roboflow）
-- [ ] YOLOv8/v11 模型训练与超参数调优
-- [ ] 模型评估（mAP、Precision、Recall、推理速度）
-- [ ] TensorRT / ONNX 模型导出与加速
-- [ ] 检测服务 API 封装（图片/视频流输入 → 检测结果输出）
-- [ ] 前端检测结果可视化（视频叠加检测框）
+- [x] Leaflet 地图组件 + Dashboard/Monitor/PathPlanning 完整 UI
+- [x] 后端 API 完整业务逻辑（CRUD + 文件上传 + 路径生成）
+- [x] WebSocket 实时通信（遥测/检测/仪表盘/心跳）
+- [x] 前端对接后端 API + WebSocket 实时数据
+- [x] 所有页面（Dashboard/Monitor/Detection/Tracking/Mission/PathPlanning）连接后端
 
-### 第三阶段：目标跟踪模块开发（第 7-10 周）
+### 第三阶段：认证与质量保障 ✅
 
-- [ ] DeepSORT 跟踪器实现与集成
-- [ ] ByteTrack / BoT-SORT 对比实验
-- [ ] ReID 模型训练（外观特征提取）
-- [ ] 跟踪评估（MOTA、IDF1、HOTA、ID Switch）
-- [ ] 检测+跟踪 Pipeline 联调
-- [ ] 前端轨迹可视化与回放功能
+- [x] 登录/注册页面 + JWT 认证
+- [x] 路由守卫（AuthGuard）+ 401 自动跳转
+- [x] 系统设置页面对接后端持久化
+- [x] 后端单元测试（pytest-asyncio，覆盖 auth/missions/planning）
+- [x] 前端 ErrorBoundary 错误边界
+- [x] bcrypt 兼容性修复
 
-### 第四阶段：路径规划模块开发（第 11-14 周）
+### 第四阶段：工程化完善 ✅
 
-- [ ] 栅格地图构建与障碍物建模
-- [ ] A* 全局路径规划实现与测试
-- [ ] RRT* 采样式规划实现
-- [ ] 改进蚁群算法优化多航点巡检顺序
-- [ ] D* Lite 动态避障与重规划
-- [ ] 区域覆盖规划算法实现
-- [ ] 前端航线编辑与路径可视化
+- [x] Alembic 数据库迁移配置
+- [x] 404 页面 + 加载状态组件
+- [x] API 响应拦截器（401 自动跳转登录）
+- [x] README 文档更新
 
-### 第五阶段：系统集成与联调（第 15-18 周）
+### 后续规划
 
-- [ ] 三大模块联调（检测 → 跟踪 → 动态重规划）
+- [ ] 数据集采集与 YOLOv8/v11 模型训练
+- [ ] DeepSORT / ByteTrack 跟踪器实际集成
+- [ ] TensorRT / ONNX 推理加速
 - [ ] 飞控通信集成（MAVLink 航线下发与遥测）
-- [ ] 实时监控页面（视频+地图+遥测+检测+跟踪 联动）
-- [ ] 任务管理与调度系统
-- [ ] 数据统计与报告生成
-
-### 第六阶段：测试优化与部署（第 19-22 周）
-
-- [ ] 单元测试与集成测试
 - [ ] 仿真环境测试（AirSim / Gazebo）
-- [ ] 外场飞行联调测试
-- [ ] 性能优化（推理延迟、跟踪精度、规划效率）
+- [ ] CI/CD 流水线搭建
 - [ ] 生产环境部署
-- [ ] 用户文档与培训
 
 ---
 
@@ -421,24 +410,34 @@ cd UAVDetectionSystem
 # 2. 复制环境变量
 cp .env.example .env
 
-# 3. 使用 Docker Compose 启动基础服务
-docker-compose up -d
+# 3. 后端启动（开发模式，使用 SQLite）
+cd backend
+python -m venv venv
+# Windows: venv\Scripts\activate | Linux/Mac: source venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
 
-# 4. 安装 Python 依赖（各模块）
-pip install -r detection/requirements.txt
-pip install -r tracking/requirements.txt
-pip install -r path_planning/requirements.txt
-pip install -r backend/requirements.txt
+# 4. 前端启动（新终端）
+cd frontend
+npm install
+npm run dev
 
-# 5. 启动后端
-cd backend && uvicorn app.main:app --reload --port 8000
-
-# 6. 启动前端
-cd frontend && npm install && npm run dev
-
-# 7. 访问系统
+# 5. 访问系统
 # 前端: http://localhost:3000
 # API 文档: http://localhost:8000/docs
+# 首次使用请先注册账户
+
+# 6. 运行后端测试
+cd backend
+pytest tests/ -v
+
+# 7. 数据库迁移（可选，生产环境）
+cd backend
+alembic revision --autogenerate -m "init"
+alembic upgrade head
+
+# 8. Docker Compose 启动完整服务（可选）
+docker-compose up -d
 ```
 
 ---

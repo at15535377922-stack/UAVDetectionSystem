@@ -19,6 +19,14 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
+    // Auto redirect to login on 401 (token expired or invalid)
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token')
+      const currentPath = window.location.pathname
+      if (currentPath !== '/login') {
+        window.location.href = '/login'
+      }
+    }
     console.error('API Error:', error.response?.data || error.message)
     return Promise.reject(error)
   },
