@@ -17,7 +17,7 @@ class Mission(Base):
     mission_type: Mapped[str] = mapped_column(String(50), default="inspection")  # inspection / patrol / survey
     device_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("devices.id"), nullable=True)
     creator_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
-    waypoints: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    waypoints: Mapped[list | None] = mapped_column(JSON, nullable=True)
     algorithm: Mapped[str | None] = mapped_column(String(50), nullable=True)
     total_distance: Mapped[float | None] = mapped_column(Float, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

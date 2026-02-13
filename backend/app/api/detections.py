@@ -36,6 +36,7 @@ async def detect_image(
         image_path=image_path,
         model_name=model_name,
         detections=detections_list,
+        detection_count=len(detections_list),
     )
     db.add(result)
     await db.commit()

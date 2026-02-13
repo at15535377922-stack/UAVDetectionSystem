@@ -26,8 +26,9 @@ class DetectionResultResponse(BaseModel):
     device_id: int | None = None
     image_path: str | None = None
     model_name: str
-    detections: list[DetectionBox]
-    frame_number: int | None = None
+    detections: list[dict] = []
+    detection_count: int = 0
+    inference_time_ms: float | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -17,7 +17,8 @@ export interface DetectionResult {
   image_path: string | null
   model_name: string
   detections: DetectionBox[]
-  frame_number: number | null
+  detection_count: number
+  inference_time_ms: number | null
   created_at: string
 }
 

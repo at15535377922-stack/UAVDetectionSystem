@@ -15,7 +15,7 @@ class DetectionResult(Base):
     device_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("devices.id"), nullable=True)
     image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     model_name: Mapped[str] = mapped_column(String(100), default="yolov8n")
-    detections: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # [{class_name, confidence, bbox}, ...]
+    detections: Mapped[list | None] = mapped_column(JSON, nullable=True)  # [{class_name, confidence, bbox}, ...]
     detection_count: Mapped[int] = mapped_column(Integer, default=0)
     inference_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

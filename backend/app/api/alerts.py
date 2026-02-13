@@ -94,6 +94,30 @@ async def delete_rule(
 
 # ── Alerts ───────────────────────────────────────────────────
 
+@router.get("/stats", response_model=AlertStats)
+async def alert_stats(db: AsyncSession = Depends(get_db)):
+    total = (await db.execute(select(func.count()).select_from(Alert))).scalar() or 0
+    unack = (await db.execute(
+        select(func.count()).select_from(Alert).where(Alert.acknowledged == False)
+    )).scalar() or 0
+    critical = (await db.execute(
+        select(func.count()).select_from(Alert).where(Alert.severity == "critical")
+    )).scalar() or 0
+    warning = (await db.execute(
+        select(func.count()).select_from(Alert).where(Alert.severity == "warning")
+    )).scalar() or 0
+    info = (await db.execute(
+        select(func.count()).select_from(Alert).where(Alert.severity == "info")
+    )).scalar() or 0
+    resolved = (await db.execute(
+        select(func.count()).select_from(Alert).where(Alert.resolved == True)
+    )).scalar() or 0
+    return AlertStats(
+        total=total, unacknowledged=unack,
+        critical=critical, warning=warning, info=info, resolved=resolved,
+    )
+
+
 @router.get("/", response_model=AlertListResponse)
 async def list_alerts(
     skip: int = Query(0, ge=0),
@@ -194,27 +218,3 @@ async def delete_alert(
         raise HTTPException(status_code=404, detail="告警不存在")
     await db.delete(alert)
     await db.commit()
-
-
-@router.get("/stats", response_model=AlertStats)
-async def alert_stats(db: AsyncSession = Depends(get_db)):
-    total = (await db.execute(select(func.count()).select_from(Alert))).scalar() or 0
-    unack = (await db.execute(
-        select(func.count()).select_from(Alert).where(Alert.acknowledged == False)
-    )).scalar() or 0
-    critical = (await db.execute(
-        select(func.count()).select_from(Alert).where(Alert.severity == "critical")
-    )).scalar() or 0
-    warning = (await db.execute(
-        select(func.count()).select_from(Alert).where(Alert.severity == "warning")
-    )).scalar() or 0
-    info = (await db.execute(
-        select(func.count()).select_from(Alert).where(Alert.severity == "info")
-    )).scalar() or 0
-    resolved = (await db.execute(
-        select(func.count()).select_from(Alert).where(Alert.resolved == True)
-    )).scalar() or 0
-    return AlertStats(
-        total=total, unacknowledged=unack,
-        critical=critical, warning=warning, info=info, resolved=resolved,
-    )
