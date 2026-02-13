@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef } from 'react'
-import { Battery, Wifi, Navigation, Gauge, Satellite, Radio, Circle } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Battery, Wifi, Navigation, Gauge, Satellite, Radio, Circle, Loader2 } from 'lucide-react'
 import MapView, { type MapMarker, type MapPath } from '../components/MapView'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { deviceApi, type Device } from '../services/deviceApi'
 
 interface TelemetryData {
   latitude: number; longitude: number; altitude: number
@@ -10,17 +11,42 @@ interface TelemetryData {
 }
 
 export default function Monitor() {
-  const [selectedUav, setSelectedUav] = useState('UAV-01')
+  const [devices, setDevices] = useState<Device[]>([])
+  const [devicesLoading, setDevicesLoading] = useState(true)
+  const [selectedUav, setSelectedUav] = useState('')
   const [telemetryMap, setTelemetryMap] = useState<Record<string, TelemetryData>>({})
   const trailsRef = useRef<Record<string, [number, number][]>>({})
   const [markers, setMarkers] = useState<MapMarker[]>([])
   const [paths, setPaths] = useState<MapPath[]>([])
 
-  const uavList = [
-    { id: 'UAV-01', status: 'flying', mode: '自主巡航' },
-    { id: 'UAV-02', status: 'flying', mode: '定点悬停' },
-    { id: 'UAV-03', status: 'idle', mode: '待命' },
-  ]
+  // Fetch devices from API, fallback to hardcoded list
+  useEffect(() => {
+    deviceApi.list()
+      .then((data) => {
+        if (data.length > 0) {
+          setDevices(data)
+          setSelectedUav(data[0].name)
+        } else {
+          const fallback = [
+            { id: 0, name: 'UAV-01', status: 'online', device_type: 'quadcopter', serial_number: '', battery: null, latitude: null, longitude: null, altitude: null, owner_id: null, created_at: '', updated_at: null },
+            { id: 0, name: 'UAV-02', status: 'online', device_type: 'quadcopter', serial_number: '', battery: null, latitude: null, longitude: null, altitude: null, owner_id: null, created_at: '', updated_at: null },
+            { id: 0, name: 'UAV-03', status: 'offline', device_type: 'quadcopter', serial_number: '', battery: null, latitude: null, longitude: null, altitude: null, owner_id: null, created_at: '', updated_at: null },
+          ] as Device[]
+          setDevices(fallback)
+          setSelectedUav('UAV-01')
+        }
+      })
+      .catch(() => {
+        const fallback = [
+          { id: 0, name: 'UAV-01', status: 'online', device_type: 'quadcopter', serial_number: '', battery: null, latitude: null, longitude: null, altitude: null, owner_id: null, created_at: '', updated_at: null },
+          { id: 0, name: 'UAV-02', status: 'online', device_type: 'quadcopter', serial_number: '', battery: null, latitude: null, longitude: null, altitude: null, owner_id: null, created_at: '', updated_at: null },
+          { id: 0, name: 'UAV-03', status: 'offline', device_type: 'quadcopter', serial_number: '', battery: null, latitude: null, longitude: null, altitude: null, owner_id: null, created_at: '', updated_at: null },
+        ] as Device[]
+        setDevices(fallback)
+        setSelectedUav('UAV-01')
+      })
+      .finally(() => setDevicesLoading(false))
+  }, [])
 
   const handleWsMessage = useCallback((data: any) => {
     if (data.type === 'telemetry') {
@@ -71,20 +97,22 @@ export default function Monitor() {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">实时监控</h2>
         <div className="flex items-center gap-3">
-          {uavList.map((uav) => (
+          {devicesLoading ? (
+            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+          ) : devices.map((d) => (
             <button
-              key={uav.id}
-              onClick={() => setSelectedUav(uav.id)}
+              key={d.name}
+              onClick={() => setSelectedUav(d.name)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                selectedUav === uav.id
+                selectedUav === d.name
                   ? 'bg-blue-600 text-white'
                   : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
               }`}
             >
               <Circle className={`w-2.5 h-2.5 fill-current ${
-                uav.status === 'flying' ? 'text-green-400' : 'text-gray-400'
+                d.status === 'online' || d.status === 'flying' ? 'text-green-400' : 'text-gray-400'
               }`} />
-              {uav.id}
+              {d.name}
             </button>
           ))}
         </div>
@@ -141,7 +169,7 @@ export default function Monitor() {
           <div className="mt-4 p-3 bg-blue-50 rounded-lg">
             <p className="text-xs text-blue-600 font-medium">飞行模式</p>
             <p className="text-sm font-bold text-blue-800 mt-1">
-              {uavList.find((u) => u.id === selectedUav)?.mode}
+              {currentTelemetry?.flight_mode || devices.find((d) => d.name === selectedUav)?.status || '—'}
             </p>
           </div>
         </div>

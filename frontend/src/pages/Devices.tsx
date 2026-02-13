@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Trash2, Edit2, Wifi, WifiOff, Battery, MapPin, Loader2, X } from 'lucide-react'
 import { deviceApi, type Device } from '../services/deviceApi'
+import { useToast } from '../components/Toast'
 
 const statusMap: Record<string, { label: string; cls: string }> = {
   online: { label: '在线', cls: 'bg-green-100 text-green-700' },
@@ -25,6 +26,8 @@ export default function Devices() {
   const [form, setForm] = useState({ name: '', device_type: 'quadcopter', serial_number: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const toast = useToast()
 
   const fetchDevices = async () => {
     setLoading(true)
@@ -64,8 +67,10 @@ export default function Devices() {
     try {
       if (editId) {
         await deviceApi.update(editId, { name: form.name })
+        toast.success('设备信息已更新')
       } else {
         await deviceApi.register(form)
+        toast.success('设备注册成功')
       }
       setShowForm(false)
       fetchDevices()
@@ -77,12 +82,13 @@ export default function Devices() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确认删除该设备？')) return
     try {
       await deviceApi.delete(id)
+      toast.success('设备已删除')
+      setDeleteConfirmId(null)
       fetchDevices()
     } catch {
-      setError('删除失败')
+      toast.error('删除失败')
     }
   }
 
@@ -231,13 +237,30 @@ export default function Devices() {
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => handleDelete(d.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                      title="删除"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {deleteConfirmId === d.id ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleDelete(d.id)}
+                          className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                        >
+                          确认
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmId(null)}
+                          className="px-2 py-1 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setDeleteConfirmId(d.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        title="删除"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

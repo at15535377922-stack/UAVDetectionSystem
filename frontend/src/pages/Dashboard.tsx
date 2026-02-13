@@ -35,11 +35,17 @@ export default function Dashboard() {
   const [uavPaths, setUavPaths] = useState<MapPath[]>([])
   const trailsRef = useRef<Record<string, [number, number][]>>({})
 
-  // Fetch initial data from REST API
-  useEffect(() => {
+  // Fetch initial data from REST API + auto-refresh every 30s
+  const fetchData = useCallback(() => {
     missionApi.list({ limit: 5 }).then((res) => setMissions(res.missions)).catch(() => {})
     detectionApi.getStats().then((res) => setDetectionStats(res)).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    fetchData()
+    const interval = setInterval(fetchData, 30000)
+    return () => clearInterval(interval)
+  }, [fetchData])
 
   // WebSocket for real-time dashboard data
   const handleWsMessage = useCallback((data: any) => {

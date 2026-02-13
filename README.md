@@ -331,6 +331,20 @@ UAVDetectionSystem/
 - [x] API 响应拦截器（401 自动跳转登录）
 - [x] README 文档更新
 
+### 第五阶段：功能增强 ✅
+
+- [x] 设备管理页面（CRUD + 状态卡片 + 电量条）
+- [x] 检测页面增强（图片预览 + 统计摘要 + 类别饼图）
+- [x] 侧边栏导航新增设备管理入口
+
+### 第六阶段：用户体验增强 ✅
+
+- [x] 通用 Loading / Skeleton 组件（加载态、骨架屏、统计卡片骨架）
+- [x] Toast 通知组件（替代 alert/confirm，支持 success/error/warning/info）
+- [x] Monitor 页面动态设备列表（从 API 获取，含降级处理）
+- [x] Dashboard 自动刷新（30s 轮询 REST 数据）
+- [x] 设备管理删除操作改为内联确认
+
 ### 后续规划
 
 - [ ] 数据集采集与 YOLOv8/v11 模型训练
