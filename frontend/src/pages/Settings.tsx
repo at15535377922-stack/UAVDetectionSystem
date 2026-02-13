@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react'
-import { Loader2, Check } from 'lucide-react'
+import { Loader2, Check, Server, Cpu, Activity, CheckCircle, XCircle } from 'lucide-react'
 import { settingsApi, type UserSettings } from '../services/settingsApi'
+import api from '../services/api'
+
+interface ModelInfo {
+  id: string; name: string; params: string; speed: string
+  weights_available: boolean; loaded: boolean
+}
+interface TrackerInfo {
+  id: string; name: string; available: boolean; description: string
+}
 
 export default function Settings() {
   const [settings, setSettings] = useState<UserSettings>({
@@ -17,8 +26,24 @@ export default function Settings() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // System status
+  const [detectionMode, setDetectionMode] = useState<string>('—')
+  const [models, setModels] = useState<ModelInfo[]>([])
+  const [trackers, setTrackers] = useState<TrackerInfo[]>([])
+  const [healthOk, setHealthOk] = useState<boolean | null>(null)
+
   useEffect(() => {
     settingsApi.get().then(setSettings).catch(() => {})
+    // Fetch system status
+    api.get<any, { status: string }>('/health')
+      .then(() => setHealthOk(true))
+      .catch(() => setHealthOk(false))
+    api.get<any, { models: ModelInfo[]; mode: string }>('/detections/models')
+      .then((res) => { setModels(res.models); setDetectionMode(res.mode) })
+      .catch(() => {})
+    api.get<any, { trackers: TrackerInfo[] }>('/tracking/trackers')
+      .then((res) => setTrackers(res.trackers))
+      .catch(() => {})
   }, [])
 
   const handleSave = async () => {
@@ -153,6 +178,85 @@ export default function Settings() {
               />
             </div>
           </div>
+        </div>
+
+        {/* System status panel */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <Server className="w-5 h-5 text-gray-400" /> 系统状态
+          </h3>
+
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-500 mb-1">后端服务</p>
+              <div className="flex items-center gap-2">
+                {healthOk === null ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                ) : healthOk ? (
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-red-500" />
+                )}
+                <span className="text-sm font-medium">{healthOk === null ? '检测中...' : healthOk ? '正常运行' : '无法连接'}</span>
+              </div>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-500 mb-1">推理模式</p>
+              <div className="flex items-center gap-2">
+                <Activity className={`w-4 h-4 ${detectionMode === 'real' ? 'text-green-500' : 'text-yellow-500'}`} />
+                <span className="text-sm font-medium">{detectionMode === 'real' ? '真实推理' : detectionMode === 'mock' ? 'Mock 模拟' : '—'}</span>
+              </div>
+            </div>
+          </div>
+
+          {models.length > 0 && (
+            <div className="mb-4">
+              <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                <Cpu className="w-4 h-4" /> 检测模型
+              </p>
+              <div className="space-y-1.5">
+                {models.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-800">{m.name}</span>
+                      <span className="text-xs text-gray-400">{m.params}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${m.speed === 'fast' ? 'bg-green-100 text-green-700' : m.speed === 'medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                        {m.speed}
+                      </span>
+                      {m.weights_available ? (
+                        <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                      ) : (
+                        <XCircle className="w-3.5 h-3.5 text-gray-300" />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {trackers.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">跟踪器</p>
+              <div className="space-y-1.5">
+                {trackers.map((t) => (
+                  <div key={t.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                    <div>
+                      <span className="font-medium text-gray-800">{t.name}</span>
+                      <span className="text-xs text-gray-400 ml-2">{t.description}</span>
+                    </div>
+                    {t.available ? (
+                      <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                    ) : (
+                      <XCircle className="w-3.5 h-3.5 text-gray-300" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-4">

@@ -354,13 +354,18 @@ UAVDetectionSystem/
 - [x] 新增 API 端点：`/api/detections/models`、`/api/tracking/trackers`
 - [x] 启动时自动检测并报告推理模式（REAL / MOCK）
 
+### 第八阶段：CI/CD + 前端服务对接 ✅
+
+- [x] Settings 页面系统状态面板（后端健康检查 + 推理模式 + 模型/跟踪器列表）
+- [x] GitHub Actions CI 流水线（后端 pytest + 前端 tsc + build）
+- [x] `.env.example` 完善（USE_SQLITE + SQLITE_URL）
+
 ### 后续规划
 
 - [ ] 数据集采集与 YOLOv8/v11 模型训练
 - [ ] TensorRT / ONNX 推理加速
 - [ ] 飞控通信集成（MAVLink 航线下发与遥测）
 - [ ] 仿真环境测试（AirSim / Gazebo）
-- [ ] CI/CD 流水线搭建
 - [ ] 生产环境部署
 
 ---
