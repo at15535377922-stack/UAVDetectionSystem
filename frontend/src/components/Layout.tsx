@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Cpu,
   Database,
+  Bell,
   Settings,
   Plane,
   LogOut,
@@ -24,6 +25,7 @@ const navItems = [
   { to: '/mission', label: '任务管理', icon: ClipboardList },
   { to: '/devices', label: '设备管理', icon: Cpu },
   { to: '/datasets', label: '数据集 & 训练', icon: Database },
+  { to: '/alerts', label: '告警中心', icon: Bell },
   { to: '/settings', label: '系统设置', icon: Settings },
 ]
 

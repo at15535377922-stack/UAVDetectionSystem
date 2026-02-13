@@ -396,6 +396,17 @@ UAVDetectionSystem/
 - [x] Nginx 反向代理配置（SPA fallback + API 代理 + WebSocket + Gzip）
 - [x] docker-compose.yml 增加 frontend 容器 + backend 健康检查
 
+### 第十三阶段：告警系统 ✅
+
+- [x] 告警规则模型（AlertRule）+ 告警记录模型（Alert）
+- [x] 告警规则 CRUD API（创建/更新/启用禁用/删除）
+- [x] 告警记录 API（创建/确认/解决/删除/统计）
+- [x] 前端 alertApi 服务层
+- [x] 告警中心页面（告警记录 + 告警规则双标签页）
+- [x] 告警统计卡片（总数/未确认/严重/警告/已解决）
+- [x] Dashboard 集成告警统计（未处理告警 + 严重数量）
+- [x] 侧边栏新增「告警中心」导航
+
 ### 后续规划
 
 - [ ] 仿真环境测试（AirSim / Gazebo）

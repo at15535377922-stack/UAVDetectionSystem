@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text as select_text
 
-from app.api import auth, missions, devices, detections, tracking, planning, settings, flight, datasets, training
+from app.api import auth, missions, devices, detections, tracking, planning, settings, flight, datasets, training, alerts
 from app.api.websocket import router as ws_router
 from app.core.database import engine, Base
 from app.core.logging_config import setup_logging
@@ -61,6 +61,7 @@ app.include_router(settings.router, prefix="/api/settings", tags=["系统设置"
 app.include_router(flight.router, prefix="/api/flight", tags=["飞控通信"])
 app.include_router(datasets.router, prefix="/api/datasets", tags=["数据集管理"])
 app.include_router(training.router, prefix="/api/training/jobs", tags=["模型训练"])
+app.include_router(alerts.router, prefix="/api/alerts", tags=["告警系统"])
 
 # WebSocket router
 app.include_router(ws_router, prefix="/api/ws", tags=["WebSocket"])

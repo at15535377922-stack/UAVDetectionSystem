@@ -8,6 +8,7 @@ import MapView, { type MapMarker, type MapPath } from '../components/MapView'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { missionApi, type Mission } from '../services/missionApi'
 import { detectionApi, type DetectionStats } from '../services/detectionApi'
+import { alertApi, type AlertStats } from '../services/alertApi'
 import { StatCardSkeleton, CardSkeleton } from '../components/Loading'
 
 const statusMap: Record<string, { label: string; cls: string }> = {
@@ -30,6 +31,7 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState<{ level: string; message: string; timestamp: string }[]>([])
   const [wsConnected, setWsConnected] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
+  const [alertStats, setAlertStats] = useState<AlertStats | null>(null)
 
   // UAV positions from WebSocket
   const uavPositions = useRef<Record<string, UavState>>({})
@@ -42,6 +44,7 @@ export default function Dashboard() {
     Promise.all([
       missionApi.list({ limit: 5 }).then((res) => setMissions(res.missions)).catch(() => {}),
       detectionApi.getStats().then((res) => setDetectionStats(res)).catch(() => {}),
+      alertApi.stats().then(setAlertStats).catch(() => {}),
     ]).finally(() => setDataLoaded(true))
   }, [])
 
@@ -98,6 +101,7 @@ export default function Dashboard() {
     { label: '今日检测目标', value: todayDetections ? todayDetections.toLocaleString() : (detectionStats?.today_detections?.toLocaleString() || '0'), icon: ScanSearch, color: 'bg-green-500', trend: '' },
     { label: '活跃跟踪', value: String(activeTracks || 0), icon: Route, color: 'bg-purple-500', trend: '' },
     { label: '总任务数', value: String(missions.length || 0), icon: MapPin, color: 'bg-orange-500', trend: '' },
+    { label: '未处理告警', value: String(alertStats?.unacknowledged || 0), icon: AlertTriangle, color: alertStats && alertStats.unacknowledged > 0 ? 'bg-red-500' : 'bg-gray-400', trend: alertStats?.critical ? `${alertStats.critical} 严重` : '' },
   ]
 
   const detectionChartData = detectionStats?.recent_trend?.map((d) => ({ time: d.date, count: d.count })) || [
@@ -125,9 +129,9 @@ export default function Dashboard() {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
         {!dataLoaded ? (
-          <>{Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)}</>
+          <>{Array.from({ length: 5 }).map((_, i) => <StatCardSkeleton key={i} />)}</>
         ) : stats.map((stat) => (
           <div
             key={stat.label}
