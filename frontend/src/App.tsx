@@ -10,6 +10,7 @@ import Tracking from './pages/Tracking'
 import PathPlanning from './pages/PathPlanning'
 import Mission from './pages/Mission'
 import Settings from './pages/Settings'
+import Devices from './pages/Devices'
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
         <Route path="tracking" element={<Tracking />} />
         <Route path="path-planning" element={<PathPlanning />} />
         <Route path="mission" element={<Mission />} />
+        <Route path="devices" element={<Devices />} />
         <Route path="settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<NotFound />} />

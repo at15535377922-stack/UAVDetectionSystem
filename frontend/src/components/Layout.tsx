@@ -6,6 +6,7 @@ import {
   Route,
   MapPin,
   ClipboardList,
+  Cpu,
   Settings,
   Plane,
   LogOut,
@@ -20,6 +21,7 @@ const navItems = [
   { to: '/tracking', label: '目标跟踪', icon: Route },
   { to: '/path-planning', label: '路径规划', icon: MapPin },
   { to: '/mission', label: '任务管理', icon: ClipboardList },
+  { to: '/devices', label: '设备管理', icon: Cpu },
   { to: '/settings', label: '系统设置', icon: Settings },
 ]
 

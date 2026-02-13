@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Upload, Play, Square, Loader2 } from 'lucide-react'
-import { detectionApi, type DetectionResult, type DetectionBox } from '../services/detectionApi'
+import { Upload, Play, Square, Loader2, BarChart3, Image as ImageIcon } from 'lucide-react'
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
+import { detectionApi, type DetectionResult, type DetectionBox, type DetectionStats } from '../services/detectionApi'
+
+const PIE_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981', '#ec4899', '#6366f1', '#14b8a6']
 
 export default function Detection() {
   const [modelName, setModelName] = useState('yolov8n')
@@ -10,11 +13,14 @@ export default function Detection() {
   const [resultInfo, setResultInfo] = useState<string | null>(null)
   const [history, setHistory] = useState<DetectionResult[]>([])
   const [streamSession, setStreamSession] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [stats, setStats] = useState<DetectionStats | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Load recent results
+  // Load recent results and stats
   useEffect(() => {
     detectionApi.listResults({ limit: 10 }).then(setHistory).catch(() => {})
+    detectionApi.getStats().then(setStats).catch(() => {})
   }, [])
 
   const handleUpload = async () => {
@@ -24,6 +30,11 @@ export default function Detection() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+
+    // Show image preview
+    const url = URL.createObjectURL(file)
+    setPreviewUrl(url)
+
     setLoading(true)
     setDetections([])
     setResultInfo(null)
@@ -32,6 +43,8 @@ export default function Detection() {
       setDetections(result.detections || [])
       setResultInfo(`检测完成 — 模型: ${result.model_name}, 目标数: ${result.detections?.length || 0}`)
       setHistory((prev) => [result, ...prev].slice(0, 10))
+      // Refresh stats
+      detectionApi.getStats().then(setStats).catch(() => {})
     } catch (err: any) {
       setResultInfo('检测失败: ' + (err.response?.data?.detail || err.message))
     } finally {
@@ -116,12 +129,38 @@ export default function Detection() {
         {resultInfo && <p className="text-sm text-gray-500 mt-3">{resultInfo}</p>}
       </div>
 
+      {/* Stats summary */}
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
+            <p className="text-2xl font-bold text-blue-600">{stats.total_detections.toLocaleString()}</p>
+            <p className="text-xs text-gray-500 mt-1">总检测数</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
+            <p className="text-2xl font-bold text-green-600">{stats.today_detections.toLocaleString()}</p>
+            <p className="text-xs text-gray-500 mt-1">今日检测</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
+            <p className="text-2xl font-bold text-purple-600">{Object.keys(stats.class_distribution).length}</p>
+            <p className="text-xs text-gray-500 mt-1">目标类别数</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
+            <p className="text-2xl font-bold text-orange-600">{history.length}</p>
+            <p className="text-xs text-gray-500 mt-1">历史记录</p>
+          </div>
+        </div>
+      )}
+
       {/* Detection result area */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">检测画面</h3>
-          <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 relative">
-            {detections.length > 0 ? (
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <ImageIcon className="w-5 h-5 text-gray-400" /> 检测画面
+          </h3>
+          <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 relative overflow-hidden">
+            {previewUrl ? (
+              <img src={previewUrl} alt="上传图片" className="w-full h-full object-contain" />
+            ) : detections.length > 0 ? (
               <div className="w-full h-full p-4">
                 <p className="text-sm text-gray-600 mb-2">检测到 {detections.length} 个目标</p>
                 <div className="space-y-2">
@@ -137,13 +176,20 @@ export default function Detection() {
             ) : (
               '上传图片或开启视频流后显示检测结果'
             )}
+            {loading && (
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-white animate-spin" />
+              </div>
+            )}
           </div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">检测结果</h3>
-          <div className="overflow-x-auto">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-gray-400" /> 检测结果
+          </h3>
+          <div className="overflow-x-auto max-h-80">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 bg-white">
                 <tr className="border-b border-gray-200">
                   <th className="text-left py-3 px-2 text-gray-500 font-medium">ID</th>
                   <th className="text-left py-3 px-2 text-gray-500 font-medium">类别</th>
@@ -178,24 +224,52 @@ export default function Detection() {
         </div>
       </div>
 
-      {/* History */}
-      {history.length > 0 && (
-        <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">历史记录</h3>
-          <div className="space-y-2">
-            {history.map((r) => (
-              <div key={r.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <span className="text-sm font-medium text-gray-800">#{r.id}</span>
-                  <span className="text-xs text-gray-500 ml-3">{r.model_name}</span>
-                  <span className="text-xs text-gray-500 ml-3">{r.detections?.length || 0} 个目标</span>
-                </div>
-                <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleString()}</span>
-              </div>
-            ))}
+      {/* Class distribution pie chart + History */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+        {stats && Object.keys(stats.class_distribution).length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">类别分布</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={Object.entries(stats.class_distribution).map(([name, value]) => ({ name, value }))}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                >
+                  {Object.keys(stats.class_distribution).map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
+        )}
+
+        <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 ${stats && Object.keys(stats.class_distribution).length > 0 ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">历史记录</h3>
+          {history.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">暂无历史记录</p>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {history.map((r) => (
+                <div key={r.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <span className="text-sm font-medium text-gray-800">#{r.id}</span>
+                    <span className="text-xs text-gray-500 ml-3">{r.model_name}</span>
+                    <span className="text-xs text-gray-500 ml-3">{r.detections?.length || 0} 个目标</span>
+                  </div>
+                  <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
