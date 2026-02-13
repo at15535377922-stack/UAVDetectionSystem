@@ -8,6 +8,7 @@ import MapView, { type MapMarker, type MapPath } from '../components/MapView'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { missionApi, type Mission } from '../services/missionApi'
 import { detectionApi, type DetectionStats } from '../services/detectionApi'
+import { StatCardSkeleton, CardSkeleton } from '../components/Loading'
 
 const statusMap: Record<string, { label: string; cls: string }> = {
   completed: { label: '已完成', cls: 'bg-green-100 text-green-700' },
@@ -28,6 +29,7 @@ export default function Dashboard() {
   const [detectionStats, setDetectionStats] = useState<DetectionStats | null>(null)
   const [alerts, setAlerts] = useState<{ level: string; message: string; timestamp: string }[]>([])
   const [wsConnected, setWsConnected] = useState(false)
+  const [dataLoaded, setDataLoaded] = useState(false)
 
   // UAV positions from WebSocket
   const uavPositions = useRef<Record<string, UavState>>({})
@@ -37,8 +39,10 @@ export default function Dashboard() {
 
   // Fetch initial data from REST API + auto-refresh every 30s
   const fetchData = useCallback(() => {
-    missionApi.list({ limit: 5 }).then((res) => setMissions(res.missions)).catch(() => {})
-    detectionApi.getStats().then((res) => setDetectionStats(res)).catch(() => {})
+    Promise.all([
+      missionApi.list({ limit: 5 }).then((res) => setMissions(res.missions)).catch(() => {}),
+      detectionApi.getStats().then((res) => setDetectionStats(res)).catch(() => {}),
+    ]).finally(() => setDataLoaded(true))
   }, [])
 
   useEffect(() => {
@@ -122,7 +126,9 @@ export default function Dashboard() {
 
       {/* Stats cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => (
+        {!dataLoaded ? (
+          <>{Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)}</>
+        ) : stats.map((stat) => (
           <div
             key={stat.label}
             className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center gap-4 hover:shadow-md transition-shadow"
@@ -143,7 +149,9 @@ export default function Dashboard() {
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        {!dataLoaded ? (
+          <><CardSkeleton /><CardSkeleton /></>
+        ) : <><div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">今日检测趋势</h3>
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={detectionChartData}>
@@ -173,7 +181,7 @@ export default function Dashboard() {
               <Bar dataKey="count" fill="#8b5cf6" radius={[0, 4, 4, 0]} name="数量" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </div></>}
       </div>
 
       {/* Map + missions + alerts */}

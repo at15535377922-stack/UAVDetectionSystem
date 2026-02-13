@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Play, Square, RefreshCw, Circle } from 'lucide-react'
 import { trackingApi, type TrackingSession, type TrackResult } from '../services/trackingApi'
+import { useToast } from '../components/Toast'
+import api from '../services/api'
 
 export default function Tracking() {
   const [trackerType, setTrackerType] = useState('deep_sort')
@@ -8,6 +10,8 @@ export default function Tracking() {
   const [tracks, setTracks] = useState<TrackResult[]>([])
   const [sessions, setSessions] = useState<TrackingSession[]>([])
   const [info, setInfo] = useState<string | null>(null)
+  const [trackerAvail, setTrackerAvail] = useState<Record<string, boolean>>({})
+  const toast = useToast()
 
   const fetchTracks = async () => {
     try {
@@ -26,6 +30,13 @@ export default function Tracking() {
   useEffect(() => {
     fetchTracks()
     fetchSessions()
+    api.get<any, { trackers: { id: string; available: boolean }[] }>('/tracking/trackers')
+      .then((res) => {
+        const map: Record<string, boolean> = {}
+        res.trackers.forEach((t) => { map[t.id] = t.available })
+        setTrackerAvail(map)
+      })
+      .catch(() => {})
   }, [])
 
   const handleStart = async () => {
@@ -33,9 +44,10 @@ export default function Tracking() {
       const res = await trackingApi.start({ tracker_type: trackerType })
       setSession(res)
       setInfo(`跟踪已启动 — 会话: ${res.session_id}, 算法: ${res.tracker_type}`)
+      toast.success('跟踪已启动')
       await fetchSessions()
     } catch (err: any) {
-      setInfo('启动失败: ' + (err.response?.data?.detail || err.message))
+      toast.error('启动失败: ' + (err.response?.data?.detail || err.message))
     }
   }
 
@@ -45,10 +57,11 @@ export default function Tracking() {
       await trackingApi.stop(session.session_id)
       setSession(null)
       setInfo('跟踪已停止')
+      toast.success('跟踪已停止')
       await fetchSessions()
       await fetchTracks()
     } catch {
-      setInfo('停止失败')
+      toast.error('停止失败')
     }
   }
 
@@ -64,9 +77,9 @@ export default function Tracking() {
             onChange={(e) => setTrackerType(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="deep_sort">DeepSORT</option>
-            <option value="byte_track">ByteTrack</option>
-            <option value="bot_sort">BoT-SORT</option>
+            <option value="deep_sort">DeepSORT {trackerAvail.deep_sort ? '✓' : ''}</option>
+            <option value="byte_track">ByteTrack {trackerAvail.byte_track ? '✓' : ''}</option>
+            <option value="bot_sort">BoT-SORT {trackerAvail.bot_sort ? '✓' : ''}</option>
           </select>
           {!session ? (
             <button

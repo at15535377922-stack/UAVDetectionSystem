@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Upload, Play, Square, Loader2, BarChart3, Image as ImageIcon } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { detectionApi, type DetectionResult, type DetectionBox, type DetectionStats } from '../services/detectionApi'
+import { useToast } from '../components/Toast'
 
 const PIE_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981', '#ec4899', '#6366f1', '#14b8a6']
 
@@ -16,6 +17,7 @@ export default function Detection() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [stats, setStats] = useState<DetectionStats | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const toast = useToast()
 
   // Load recent results and stats
   useEffect(() => {
@@ -42,11 +44,13 @@ export default function Detection() {
       const result = await detectionApi.detectImage(file, { model_name: modelName, confidence })
       setDetections(result.detections || [])
       setResultInfo(`检测完成 — 模型: ${result.model_name}, 目标数: ${result.detections?.length || 0}`)
+      toast.success(`检测完成，发现 ${result.detections?.length || 0} 个目标`)
       setHistory((prev) => [result, ...prev].slice(0, 10))
       // Refresh stats
       detectionApi.getStats().then(setStats).catch(() => {})
     } catch (err: any) {
       setResultInfo('检测失败: ' + (err.response?.data?.detail || err.message))
+      toast.error('检测失败')
     } finally {
       setLoading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -58,8 +62,10 @@ export default function Detection() {
       const res = await detectionApi.startStream({ model_name: modelName, confidence })
       setStreamSession(res.session_id)
       setResultInfo(`实时检测已启动 — 会话: ${res.session_id}`)
+      toast.success('实时检测已启动')
     } catch (err: any) {
       setResultInfo('启动失败: ' + (err.response?.data?.detail || err.message))
+      toast.error('启动失败')
     }
   }
 
@@ -69,8 +75,9 @@ export default function Detection() {
       await detectionApi.stopStream(streamSession)
       setResultInfo('实时检测已停止')
       setStreamSession(null)
+      toast.success('实时检测已停止')
     } catch {
-      setResultInfo('停止失败')
+      toast.error('停止失败')
     }
   }
 

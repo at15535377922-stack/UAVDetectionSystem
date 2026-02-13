@@ -360,6 +360,13 @@ UAVDetectionSystem/
 - [x] GitHub Actions CI 流水线（后端 pytest + 前端 tsc + build）
 - [x] `.env.example` 完善（USE_SQLITE + SQLITE_URL）
 
+### 第九阶段：全页面 UX 统一 ✅
+
+- [x] Mission 页面：Toast 通知 + 内联删除确认 + 表格骨架屏
+- [x] Tracking 页面：Toast 通知 + 跟踪器可用性标签
+- [x] Detection 页面：Toast 通知（检测成功/失败、流启停）
+- [x] Dashboard：骨架屏加载态（统计卡片 + 图表区域）
+
 ### 后续规划
 
 - [ ] 数据集采集与 YOLOv8/v11 模型训练

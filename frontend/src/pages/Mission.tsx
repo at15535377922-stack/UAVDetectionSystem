@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Plus, Play, Square, Trash2, Loader2, RefreshCw } from 'lucide-react'
 import { missionApi, type Mission as MissionType } from '../services/missionApi'
+import { useToast } from '../components/Toast'
+import { TableSkeleton } from '../components/Loading'
 
 const statusMap: Record<string, { label: string; cls: string }> = {
   completed: { label: '已完成', cls: 'bg-green-100 text-green-700' },
@@ -19,6 +21,8 @@ export default function Mission() {
   const [newDesc, setNewDesc] = useState('')
   const [newType, setNewType] = useState('inspection')
   const [creating, setCreating] = useState(false)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const toast = useToast()
 
   const fetchMissions = async () => {
     setLoading(true)
@@ -43,9 +47,10 @@ export default function Mission() {
       setShowCreate(false)
       setNewName('')
       setNewDesc('')
+      toast.success('任务创建成功')
       await fetchMissions()
     } catch {
-      // handle error
+      toast.error('任务创建失败')
     } finally {
       setCreating(false)
     }
@@ -54,23 +59,26 @@ export default function Mission() {
   const handleStart = async (id: number) => {
     try {
       await missionApi.start(id)
+      toast.success('任务已启动')
       await fetchMissions()
-    } catch { /* */ }
+    } catch { toast.error('启动失败') }
   }
 
   const handleStop = async (id: number) => {
     try {
       await missionApi.stop(id)
+      toast.success('任务已停止')
       await fetchMissions()
-    } catch { /* */ }
+    } catch { toast.error('停止失败') }
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确定删除此任务？')) return
     try {
       await missionApi.delete(id)
+      toast.success('任务已删除')
+      setDeleteConfirmId(null)
       await fetchMissions()
-    } catch { /* */ }
+    } catch { toast.error('删除失败') }
   }
 
   return (
@@ -162,10 +170,16 @@ export default function Mission() {
             </tr>
           </thead>
           <tbody>
-            {missions.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="p-4">
+                  <TableSkeleton rows={4} />
+                </td>
+              </tr>
+            ) : missions.length === 0 ? (
               <tr>
                 <td colSpan={6} className="py-12 text-center text-gray-400">
-                  {loading ? '加载中...' : '暂无任务数据'}
+                  暂无任务数据
                 </td>
               </tr>
             ) : (
@@ -191,9 +205,26 @@ export default function Mission() {
                             <Square className="w-4 h-4" />
                           </button>
                         ) : null}
-                        <button onClick={() => handleDelete(task.id)} className="text-red-500 hover:text-red-700" title="删除">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {deleteConfirmId === task.id ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleDelete(task.id)}
+                              className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                            >
+                              确认
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirmId(null)}
+                              className="px-2 py-1 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300"
+                            >
+                              取消
+                            </button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setDeleteConfirmId(task.id)} className="text-red-500 hover:text-red-700" title="删除">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
