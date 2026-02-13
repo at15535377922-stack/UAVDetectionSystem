@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import AuthGuard from './components/AuthGuard'
@@ -11,8 +12,17 @@ import PathPlanning from './pages/PathPlanning'
 import Mission from './pages/Mission'
 import Settings from './pages/Settings'
 import Devices from './pages/Devices'
+import { useToast } from './components/Toast'
+import { setGlobalErrorHandler } from './utils/apiErrors'
 
 function App() {
+  const toast = useToast()
+
+  useEffect(() => {
+    setGlobalErrorHandler((message) => {
+      toast.error(message)
+    })
+  }, [toast])
   return (
     <Routes>
       <Route path="/login" element={<Login />} />

@@ -367,10 +367,18 @@ UAVDetectionSystem/
 - [x] Detection 页面：Toast 通知（检测成功/失败、流启停）
 - [x] Dashboard：骨架屏加载态（统计卡片 + 图表区域）
 
+### 第十阶段：推理加速 + API 安全 + 全局错误处理 ✅
+
+- [x] ONNX Runtime 推理服务（自动检测 CUDA/TensorRT，含 NMS 后处理）
+- [x] 检测链优先级：ONNX → Ultralytics → Mock 自动降级
+- [x] API 限流中间件（Token Bucket，120 req/min/IP）
+- [x] 增强健康检查（DB 延迟 + 检测/跟踪/ONNX 状态）
+- [x] 前端全局 API 错误处理（429/500 自动 Toast 弹出）
+- [x] 添加 numpy / Pillow 依赖，ONNX Runtime 可选安装
+
 ### 后续规划
 
 - [ ] 数据集采集与 YOLOv8/v11 模型训练
-- [ ] TensorRT / ONNX 推理加速
 - [ ] 飞控通信集成（MAVLink 航线下发与遥测）
 - [ ] 仿真环境测试（AirSim / Gazebo）
 - [ ] 生产环境部署

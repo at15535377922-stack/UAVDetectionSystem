@@ -61,9 +61,17 @@ class DetectorService:
         """
         Run detection on an image.
 
+        Priority: ONNX Runtime → Ultralytics YOLO → Mock fallback.
         Returns list of dicts with keys:
         x1, y1, x2, y2, confidence, class_name, class_id
         """
+        # Try ONNX first (fastest)
+        from app.services.onnx_detector import onnx_detector_service
+        onnx_result = onnx_detector_service.detect_image(image_bytes, model_name, confidence)
+        if onnx_result is not None:
+            return onnx_result
+
+        # Fall back to Ultralytics
         model = self._get_model(model_name)
 
         if model is None:
