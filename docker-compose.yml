@@ -63,6 +63,22 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/weights:/app/weights
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: uav_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:

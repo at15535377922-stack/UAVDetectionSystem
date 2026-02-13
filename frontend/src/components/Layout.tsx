@@ -7,6 +7,7 @@ import {
   MapPin,
   ClipboardList,
   Cpu,
+  Database,
   Settings,
   Plane,
   LogOut,
@@ -22,6 +23,7 @@ const navItems = [
   { to: '/path-planning', label: '路径规划', icon: MapPin },
   { to: '/mission', label: '任务管理', icon: ClipboardList },
   { to: '/devices', label: '设备管理', icon: Cpu },
+  { to: '/datasets', label: '数据集 & 训练', icon: Database },
   { to: '/settings', label: '系统设置', icon: Settings },
 ]
 

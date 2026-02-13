@@ -12,6 +12,7 @@ import PathPlanning from './pages/PathPlanning'
 import Mission from './pages/Mission'
 import Settings from './pages/Settings'
 import Devices from './pages/Devices'
+import Datasets from './pages/Datasets'
 import { useToast } from './components/Toast'
 import { setGlobalErrorHandler } from './utils/apiErrors'
 
@@ -42,6 +43,7 @@ function App() {
         <Route path="path-planning" element={<PathPlanning />} />
         <Route path="mission" element={<Mission />} />
         <Route path="devices" element={<Devices />} />
+        <Route path="datasets" element={<Datasets />} />
         <Route path="settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<NotFound />} />

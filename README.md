@@ -385,11 +385,22 @@ UAVDetectionSystem/
 - [x] PathPlanning 航线下发功能对接（一键下发至 UAV）
 - [x] Monitor 页面飞控指令面板（起飞/降落/返航/悬停按钮）
 
+### 第十二阶段：数据集管理 + 模型训练 + 生产部署 ✅
+
+- [x] 数据集管理模型（Dataset）+ CRUD API + 图片上传端点
+- [x] 训练任务模型（TrainingJob）+ CRUD API + 启动/停止/模拟进度
+- [x] 前端数据集 & 训练管理页面（创建/删除/进度条/指标展示）
+- [x] 前端 datasetApi / trainingApi 服务层
+- [x] 侧边栏新增「数据集 & 训练」导航
+- [x] 前端 Dockerfile（多阶段构建 + Nginx）
+- [x] Nginx 反向代理配置（SPA fallback + API 代理 + WebSocket + Gzip）
+- [x] docker-compose.yml 增加 frontend 容器 + backend 健康检查
+
 ### 后续规划
 
-- [ ] 数据集采集与 YOLOv8/v11 模型训练
 - [ ] 仿真环境测试（AirSim / Gazebo）
-- [ ] 生产环境部署
+- [ ] Celery 异步训练任务队列
+- [ ] MinIO 文件存储集成（数据集图片 + 模型权重）
 
 ---
 

@@ -10,20 +10,27 @@ import time
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
 logger = logging.getLogger(__name__)
 
-# Try to import onnxruntime
+# Try to import numpy and onnxruntime (both optional)
+try:
+    import numpy as np
+    _HAS_NUMPY = True
+except ImportError:
+    np = None  # type: ignore
+    _HAS_NUMPY = False
+    logger.warning("numpy not installed — ONNX inference unavailable")
+
 try:
     import onnxruntime as ort
-    _HAS_ORT = True
+    _HAS_ORT = True and _HAS_NUMPY
     _ORT_PROVIDERS = ort.get_available_providers()
     logger.info("ONNX Runtime available — providers: %s", _ORT_PROVIDERS)
 except ImportError:
     _HAS_ORT = False
     _ORT_PROVIDERS = []
-    logger.warning("ONNX Runtime not installed — ONNX inference unavailable")
+    if _HAS_NUMPY:
+        logger.warning("ONNX Runtime not installed — ONNX inference unavailable")
 
 WEIGHTS_DIR = Path(__file__).resolve().parent.parent.parent / "weights"
 
