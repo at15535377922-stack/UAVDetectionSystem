@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,15 +7,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import auth, missions, devices, detections, tracking, planning, settings
 from app.api.websocket import router as ws_router
 from app.core.database import engine, Base
+from app.core.logging_config import setup_logging
+from app.services.detector import detector_service
+from app.services.tracker import tracker_service
+
+setup_logging(level="INFO")
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: create tables (dev only — use Alembic in production)
+    logger.info("Starting UAV Detection System...")
+    logger.info("Detection mode: %s", "REAL" if detector_service.is_real_mode else "MOCK")
+    logger.info("Tracking mode: %s", "REAL" if tracker_service.is_real_mode else "MOCK")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    logger.info("Database tables ready")
     yield
     # Shutdown
+    logger.info("Shutting down...")
     await engine.dispose()
 
 

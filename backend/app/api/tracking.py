@@ -7,11 +7,9 @@ from sqlalchemy import select
 from app.core.database import get_db
 from app.models.detection_result import TrackingResult
 from app.schemas.tracking import TrackResponse, TrackingSession
+from app.services.tracker import tracker_service
 
 router = APIRouter()
-
-# In-memory tracking sessions (in production, use Redis)
-_tracking_sessions: dict[str, dict] = {}
 
 
 @router.post("/start", response_model=TrackingSession)
@@ -21,41 +19,50 @@ async def start_tracking(
     mission_id: int | None = Query(None),
     device_id: int | None = Query(None),
 ):
-    if tracker_type not in ("deep_sort", "byte_track", "bot_sort"):
+    supported_ids = [t["id"] for t in tracker_service.supported_trackers]
+    if tracker_type not in supported_ids:
         raise HTTPException(status_code=400, detail=f"不支持的跟踪器类型: {tracker_type}")
 
     session_id = uuid.uuid4().hex[:8]
-    session = {
-        "session_id": session_id,
-        "tracker_type": tracker_type,
-        "source": source,
-        "mission_id": mission_id,
-        "device_id": device_id,
-        "status": "running",
-        "active_tracks": 0,
-        "total_tracks": 0,
-        "fps": 0.0,
-    }
-    _tracking_sessions[session_id] = session
+    session = tracker_service.create_session(session_id, tracker_type, source)
 
-    # TODO: Start actual tracking pipeline in background task
-    return TrackingSession(**session)
+    return TrackingSession(
+        session_id=session.session_id,
+        tracker_type=session.tracker_type,
+        source=session.source,
+        status=session.status,
+        active_tracks=session.active_tracks,
+        total_tracks=session.total_tracks,
+        fps=session.fps,
+    )
 
 
 @router.post("/stop", response_model=TrackingSession)
 async def stop_tracking(session_id: str = Query(...)):
-    session = _tracking_sessions.get(session_id)
+    session = tracker_service.stop_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="跟踪会话不存在")
 
-    session["status"] = "stopped"
-    # TODO: Stop the tracking pipeline
-    return TrackingSession(**session)
+    return TrackingSession(
+        session_id=session.session_id,
+        tracker_type=session.tracker_type,
+        source=session.source,
+        status=session.status,
+        active_tracks=session.active_tracks,
+        total_tracks=session.total_tracks,
+        fps=session.fps,
+    )
 
 
 @router.get("/sessions")
 async def list_sessions():
-    return {"sessions": list(_tracking_sessions.values())}
+    return {"sessions": tracker_service.list_sessions()}
+
+
+@router.get("/trackers")
+async def list_trackers():
+    """List supported tracker types and their availability."""
+    return {"trackers": tracker_service.supported_trackers}
 
 
 @router.get("/tracks", response_model=list[TrackResponse])

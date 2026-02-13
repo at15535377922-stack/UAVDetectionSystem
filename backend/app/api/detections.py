@@ -8,6 +8,7 @@ from sqlalchemy import select, func
 from app.core.database import get_db
 from app.models.detection_result import DetectionResult
 from app.schemas.detection import DetectionResultResponse, DetectionStats
+from app.services.detector import detector_service
 
 router = APIRouter()
 
@@ -25,25 +26,16 @@ async def detect_image(
     file_id = uuid.uuid4().hex[:12]
     image_path = f"uploads/detections/{file_id}_{file.filename}"
 
-    # TODO: Run actual YOLO inference here
-    # For now, return mock detection results
-    mock_detections = [
-        {
-            "x1": 120.5, "y1": 80.3, "x2": 340.2, "y2": 290.7,
-            "confidence": 0.92, "class_name": "drone", "class_id": 0,
-        },
-        {
-            "x1": 450.0, "y1": 200.0, "x2": 520.0, "y2": 280.0,
-            "confidence": 0.78, "class_name": "bird", "class_id": 1,
-        },
-    ]
+    # Run YOLO inference (real model or mock fallback)
+    image_bytes = await file.read()
+    detections_list = detector_service.detect_image(image_bytes, model_name, confidence)
 
     result = DetectionResult(
         mission_id=mission_id,
         device_id=device_id,
         image_path=image_path,
         model_name=model_name,
-        detections=mock_detections,
+        detections=detections_list,
     )
     db.add(result)
     await db.commit()
@@ -74,6 +66,15 @@ async def start_stream_detection(
 async def stop_stream_detection(session_id: str = Query(...)):
     # TODO: Stop the detection pipeline for this session
     return {"session_id": session_id, "status": "stopped", "message": "实时检测流已停止"}
+
+
+@router.get("/models")
+async def list_models():
+    """List available detection models and their status."""
+    return {
+        "models": detector_service.available_models,
+        "mode": "real" if detector_service.is_real_mode else "mock",
+    }
 
 
 @router.get("/results", response_model=list[DetectionResultResponse])

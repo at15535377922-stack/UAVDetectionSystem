@@ -345,10 +345,18 @@ UAVDetectionSystem/
 - [x] Dashboard 自动刷新（30s 轮询 REST 数据）
 - [x] 设备管理删除操作改为内联确认
 
+### 第七阶段：后端服务层 + 工程化 ✅
+
+- [x] YOLO 检测服务层（真实 Ultralytics 模型 + mock 降级）
+- [x] 跟踪服务层（DeepSORT / ByteTrack 框架集成 + mock 降级）
+- [x] 结构化日志系统（彩色终端输出 + 级别过滤）
+- [x] Docker Compose 完善（健康检查 + backend 容器 + Dockerfile）
+- [x] 新增 API 端点：`/api/detections/models`、`/api/tracking/trackers`
+- [x] 启动时自动检测并报告推理模式（REAL / MOCK）
+
 ### 后续规划
 
 - [ ] 数据集采集与 YOLOv8/v11 模型训练
-- [ ] DeepSORT / ByteTrack 跟踪器实际集成
 - [ ] TensorRT / ONNX 推理加速
 - [ ] 飞控通信集成（MAVLink 航线下发与遥测）
 - [ ] 仿真环境测试（AirSim / Gazebo）
