@@ -15,6 +15,16 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        ws: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            if ((err as any).code === 'ECONNREFUSED' || (err as any).code === 'ECONNABORTED') {
+              // Backend offline — silently ignore
+              return
+            }
+            console.error('[proxy]', err.message)
+          })
+        },
       },
     },
   },

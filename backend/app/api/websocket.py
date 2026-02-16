@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from app.services.flight_controller import flight_controller_service
+
 router = APIRouter()
 
 
@@ -51,7 +53,7 @@ manager = ConnectionManager()
 
 def _generate_telemetry(uav_id: str, step: int) -> dict:
     """Generate simulated telemetry data for a UAV."""
-    base_lat, base_lng = 30.5728, 104.0668
+    base_lat, base_lng = 32.0603, 118.7969
     angle = step * 0.05
     radius = 0.003
 
@@ -152,9 +154,28 @@ async def ws_dashboard(websocket: WebSocket):
     step = 0
     try:
         while True:
-            # Send telemetry for all UAVs
-            for uav_id in ["UAV-01", "UAV-02", "UAV-03"]:
-                telemetry = _generate_telemetry(uav_id, step + hash(uav_id) % 100)
+            # Only send telemetry for UAVs that are connected via flight controller
+            connections = flight_controller_service.list_connections()
+
+            for tel in connections:
+                uav_id = tel["uav_id"]
+                telemetry = {
+                    "type": "telemetry",
+                    "uav_id": uav_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "data": {
+                        "latitude": tel["latitude"],
+                        "longitude": tel["longitude"],
+                        "altitude": tel["altitude"],
+                        "speed": tel["speed"],
+                        "heading": tel["heading"],
+                        "battery": tel["battery"],
+                        "satellites": random.randint(10, 16),
+                        "signal_strength": -60 + random.randint(-10, 5),
+                        "flight_mode": tel["flight_mode"],
+                        "mission_waypoints": tel.get("mission_waypoints", []),
+                    },
+                }
                 await websocket.send_text(json.dumps(telemetry, ensure_ascii=False))
 
             # Occasionally send detection events
@@ -171,8 +192,8 @@ async def ws_dashboard(websocket: WebSocket):
             stats = {
                 "type": "stats",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "online_uavs": 3,
-                "active_missions": 2,
+                "online_uavs": len(connections),
+                "active_missions": sum(1 for c in connections if c.get("flight_mode") == "AUTO"),
                 "today_detections": 1284 + step * random.randint(0, 3),
                 "active_tracks": random.randint(3, 8),
                 "connections": manager.connection_count,

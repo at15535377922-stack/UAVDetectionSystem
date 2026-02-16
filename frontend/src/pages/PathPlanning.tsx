@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { MapPin, Trash2, Play, Download, RotateCcw, Loader2 } from 'lucide-react'
 import MapView, { type MapMarker, type MapPath } from '../components/MapView'
 import { planningApi } from '../services/planningApi'
 import { flightApi } from '../services/flightApi'
+import { deviceApi, type Device } from '../services/deviceApi'
 import { useToast } from '../components/Toast'
 
 interface WaypointData {
@@ -30,7 +31,21 @@ export default function PathPlanning() {
   } | null>(null)
   const [nextId, setNextId] = useState(1)
   const [uploading, setUploading] = useState(false)
+  const [devices, setDevices] = useState<Device[]>([])
+  const [targetUav, setTargetUav] = useState('')
   const toast = useToast()
+
+  // Fetch device list for UAV selector
+  useEffect(() => {
+    deviceApi.list()
+      .then((data) => {
+        setDevices(data)
+        if (data.length > 0 && !targetUav) {
+          setTargetUav(data[0].name)
+        }
+      })
+      .catch(() => { /* backend offline */ })
+  }, [])
 
   const handleMapClick = useCallback((lat: number, lng: number) => {
     setWaypoints((prev) => [...prev, { id: nextId, lat, lng }])
@@ -108,18 +123,20 @@ export default function PathPlanning() {
 
   const handleUploadMission = async () => {
     if (waypoints.length < 2) return
+    if (!targetUav) {
+      toast.error('请先选择目标无人机')
+      return
+    }
     setUploading(true)
     try {
-      // Connect to default UAV first, then upload
-      const uavId = 'UAV-01'
-      await flightApi.connect(uavId)
-      await flightApi.arm(uavId)
-      await flightApi.takeoff(uavId, altitude)
+      await flightApi.connect(targetUav)
+      await flightApi.arm(targetUav)
+      await flightApi.takeoff(targetUav, altitude)
       const wpData = waypoints.map((w) => ({ lat: w.lat, lng: w.lng }))
-      const res = await flightApi.uploadMission(uavId, wpData, altitude, speed)
+      const res = await flightApi.uploadMission(targetUav, wpData, altitude, speed)
       if (res.success) {
-        await flightApi.startMission(uavId)
-        toast.success(`航线已下发至 ${uavId}，共 ${wpData.length} 个航点`)
+        await flightApi.startMission(targetUav)
+        toast.success(`航线已下发至 ${targetUav}，共 ${wpData.length} 个航点`)
       } else {
         toast.error(res.error || '航线下发失败')
       }
@@ -190,6 +207,19 @@ export default function PathPlanning() {
               className="px-4 py-2 border border-gray-300 rounded-lg text-sm w-32 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">目标无人机</label>
+            <select
+              value={targetUav}
+              onChange={(e) => setTargetUav(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {devices.length === 0 && <option value="">无可用设备</option>}
+              {devices.map((d) => (
+                <option key={d.id} value={d.name}>{d.name}</option>
+              ))}
+            </select>
+          </div>
           <div className="flex items-end gap-2">
             <button
               onClick={generatePath}
@@ -206,11 +236,11 @@ export default function PathPlanning() {
             </button>
             <button
               onClick={handleUploadMission}
-              disabled={!pathInfo || uploading}
+              disabled={!pathInfo || uploading || !targetUav}
               className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {uploading ? '下发中...' : '下发航线'}
+              {uploading ? '下发中...' : `下发航线${targetUav ? ' → ' + targetUav : ''}`}
             </button>
           </div>
         </div>

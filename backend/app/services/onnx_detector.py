@@ -63,11 +63,13 @@ def _postprocess_yolo(
     confidence: float = 0.5,
     input_size: int = 640,
     class_names: dict[int, str] | None = None,
+    orig_size: tuple[int, int] | None = None,
 ) -> list[dict]:
     """
     Post-process YOLO ONNX output to detection list.
 
     Supports YOLOv8/v11 output format: [1, num_classes+4, num_boxes]
+    orig_size: (width, height) of original image — used to rescale boxes.
     """
     if class_names is None:
         class_names = DEFAULT_CLASS_NAMES
@@ -81,6 +83,13 @@ def _postprocess_yolo(
     if output.shape[0] < output.shape[1]:
         output = output.T  # -> [num_boxes, 4+num_classes]
 
+    # Scale factors from input_size back to original image
+    if orig_size:
+        sx = orig_size[0] / input_size
+        sy = orig_size[1] / input_size
+    else:
+        sx = sy = 1.0
+
     detections = []
     for row in output:
         x_c, y_c, w, h = row[:4]
@@ -91,10 +100,10 @@ def _postprocess_yolo(
         if conf < confidence:
             continue
 
-        x1 = (x_c - w / 2)
-        y1 = (y_c - h / 2)
-        x2 = (x_c + w / 2)
-        y2 = (y_c + h / 2)
+        x1 = (x_c - w / 2) * sx
+        y1 = (y_c - h / 2) * sy
+        x2 = (x_c + w / 2) * sx
+        y2 = (y_c + h / 2) * sy
 
         detections.append({
             "x1": round(float(x1), 1),
@@ -171,14 +180,28 @@ class OnnxDetectorService:
         image_bytes: bytes,
         model_name: str = "yolov8n",
         confidence: float = 0.5,
+        image_size: tuple[int, int] | None = None,
     ) -> list[dict] | None:
         """
         Run ONNX inference. Returns detections list, or None if ONNX
         model is not available (caller should fallback).
+
+        image_size: (width, height) of original image for coordinate rescaling.
         """
         session = self._get_session(model_name)
         if session is None:
             return None
+
+        # Read original image size if not provided
+        orig_size = image_size
+        if orig_size is None:
+            try:
+                from PIL import Image
+                import io
+                img = Image.open(io.BytesIO(image_bytes))
+                orig_size = img.size  # (width, height)
+            except Exception:
+                orig_size = None
 
         start = time.perf_counter()
 
@@ -188,7 +211,7 @@ class OnnxDetectorService:
 
         tensor = _preprocess_image(image_bytes, input_size)
         outputs = session.run(None, {input_meta.name: tensor})
-        detections = _postprocess_yolo(outputs, confidence, input_size)
+        detections = _postprocess_yolo(outputs, confidence, input_size, orig_size=orig_size)
 
         elapsed_ms = (time.perf_counter() - start) * 1000
         logger.info(

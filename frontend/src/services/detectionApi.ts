@@ -29,6 +29,17 @@ export interface DetectionStats {
   recent_trend: { date: string; count: number }[]
 }
 
+export interface ModelInfo {
+  id: string
+  name: string
+  params: string
+  speed: string
+  weights_available: boolean
+  onnx_available: boolean
+  loaded: boolean
+  file_size_mb: number | null
+}
+
 export const detectionApi = {
   detectImage(file: File, params?: { model_name?: string; confidence?: number; mission_id?: number }) {
     const formData = new FormData()
@@ -63,5 +74,9 @@ export const detectionApi = {
 
   getStats() {
     return api.get<any, DetectionStats>('/detections/stats')
+  },
+
+  listModels() {
+    return api.get<any, { models: ModelInfo[]; mode: string }>('/detections/models')
   },
 }

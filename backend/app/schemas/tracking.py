@@ -33,7 +33,28 @@ class TrackResponse(BaseModel):
 class TrackingSession(BaseModel):
     session_id: str
     tracker_type: str
+    source: str = ""
     status: str
     active_tracks: int
     total_tracks: int
     fps: float
+    is_mock: bool = False
+
+
+class TrackedObject(BaseModel):
+    track_id: int
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+    confidence: float
+    class_name: str
+    class_id: int
+
+
+class TrackFrameResponse(BaseModel):
+    session_id: str
+    tracked_objects: list[TrackedObject]
+    active_tracks: int
+    total_tracks: int
+    inference_time_ms: float

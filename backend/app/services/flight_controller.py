@@ -50,8 +50,8 @@ class UAVConnection:
         self._mavconn: Any = None
 
         # Simulated state
-        self._sim_lat = 30.5728
-        self._sim_lng = 104.0668
+        self._sim_lat = 32.0603
+        self._sim_lng = 118.7969
         self._sim_alt = 0.0
         self._sim_heading = 0.0
         self._sim_speed = 0.0
@@ -248,6 +248,9 @@ class UAVConnection:
             "battery": round(self._sim_battery, 1),
             "mission_progress": f"{self.current_wp}/{len(self.mission_items)}" if self.mission_items else "—",
             "flying": self._sim_flying,
+            "mission_waypoints": [
+                {"lat": wp["lat"], "lng": wp["lng"]} for wp in self.mission_items
+            ] if self.mission_items else [],
         }
 
 

@@ -1,3 +1,5 @@
+import io
+import time
 import uuid
 from datetime import datetime, timezone, timedelta
 
@@ -13,6 +15,16 @@ from app.services.detector import detector_service
 router = APIRouter()
 
 
+def _read_image_size(image_bytes: bytes) -> tuple[int, int]:
+    """Try to read (width, height) from image bytes using PIL, fallback to (640, 480)."""
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(image_bytes))
+        return img.size  # (width, height)
+    except Exception:
+        return (640, 480)
+
+
 @router.post("/image", response_model=DetectionResultResponse)
 async def detect_image(
     file: UploadFile = File(...),
@@ -26,9 +38,16 @@ async def detect_image(
     file_id = uuid.uuid4().hex[:12]
     image_path = f"uploads/detections/{file_id}_{file.filename}"
 
-    # Run YOLO inference (real model or mock fallback)
+    # Read image bytes and dimensions
     image_bytes = await file.read()
-    detections_list = detector_service.detect_image(image_bytes, model_name, confidence)
+    img_w, img_h = _read_image_size(image_bytes)
+
+    # Run YOLO inference (real model or mock fallback)
+    t0 = time.perf_counter()
+    detections_list = detector_service.detect_image(
+        image_bytes, model_name, confidence, image_size=(img_w, img_h),
+    )
+    inference_ms = round((time.perf_counter() - t0) * 1000, 1)
 
     result = DetectionResult(
         mission_id=mission_id,
@@ -37,6 +56,7 @@ async def detect_image(
         model_name=model_name,
         detections=detections_list,
         detection_count=len(detections_list),
+        inference_time_ms=inference_ms,
     )
     db.add(result)
     await db.commit()

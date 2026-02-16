@@ -74,7 +74,7 @@ function createColoredIcon(color: string) {
 }
 
 export default function MapView({
-  center = [30.5728, 104.0668],
+  center = [32.0603, 118.7969],
   zoom = 14,
   markers = [],
   paths = [],
@@ -92,9 +92,10 @@ export default function MapView({
 
     const map = L.map(containerRef.current).setView(center, zoom)
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
+    L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+      attribution: '&copy; 高德地图',
+      maxZoom: 18,
+      subdomains: '1234',
     }).addTo(map)
 
     markersLayerRef.current = L.layerGroup().addTo(map)
@@ -108,7 +109,18 @@ export default function MapView({
 
     mapRef.current = map
 
+    // Fix gray tiles: invalidateSize after layout settles
+    const timer = setTimeout(() => map.invalidateSize(), 200)
+
+    // Also watch for container resize (sidebar toggle, window resize, etc.)
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize()
+    })
+    ro.observe(containerRef.current)
+
     return () => {
+      clearTimeout(timer)
+      ro.disconnect()
       map.remove()
       mapRef.current = null
     }

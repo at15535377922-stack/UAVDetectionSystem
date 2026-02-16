@@ -18,6 +18,8 @@ httpx==0.28.0
 websockets==14.1
 numpy>=1.26.0
 Pillow>=10.0.0
+ultralytics>=8.2.0
+opencv-python-headless>=4.8.0
 
 # ONNX Runtime (optional — install for accelerated inference)
 # onnxruntime==1.19.0

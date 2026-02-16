@@ -10,6 +10,7 @@ interface TelemetryData {
   latitude: number; longitude: number; altitude: number
   speed: number; heading: number; battery: number
   satellites: number; signal_strength: number; flight_mode: string
+  mission_waypoints?: { lat: number; lng: number }[]
 }
 
 export default function Monitor() {
@@ -23,16 +24,24 @@ export default function Monitor() {
   const [cmdLoading, setCmdLoading] = useState(false)
   const toast = useToast()
 
-  const sendFlightCmd = async (cmd: () => Promise<any>, label: string) => {
+  const sendFlightCmd = async (cmd: (uavId: string) => Promise<any>, label: string) => {
+    if (!selectedUav) {
+      toast.error('请先选择一台无人机')
+      return
+    }
     setCmdLoading(true)
     try {
-      const uavId = selectedUav || 'UAV-01'
-      await flightApi.connect(uavId)
-      const res = await cmd()
+      // Ensure UAV is connected first
+      await flightApi.connect(selectedUav)
+      // Arm if needed for takeoff
+      if (label === '起飞') {
+        await flightApi.arm(selectedUav)
+      }
+      const res = await cmd(selectedUav)
       if (res.success) {
-        toast.success(`${label} 成功`)
+        toast.success(`${selectedUav} ${label} 成功`)
       } else {
-        toast.error(res.error || `${label} 失败`)
+        toast.error(res.error || `${selectedUav} ${label} 失败`)
       }
     } catch (err: any) {
       toast.error(`${label} 失败: ` + (err.response?.data?.detail || err.message))
@@ -41,62 +50,89 @@ export default function Monitor() {
     }
   }
 
-  // Fetch devices from API, fallback to hardcoded list
+  // Fetch devices from API (no hardcoded fallback — only show real devices)
   useEffect(() => {
     deviceApi.list()
       .then((data) => {
+        setDevices(data)
         if (data.length > 0) {
-          setDevices(data)
           setSelectedUav(data[0].name)
-        } else {
-          const fallback = [
-            { id: 0, name: 'UAV-01', status: 'online', device_type: 'quadcopter', serial_number: '', battery: null, latitude: null, longitude: null, altitude: null, owner_id: null, created_at: '', updated_at: null },
-            { id: 0, name: 'UAV-02', status: 'online', device_type: 'quadcopter', serial_number: '', battery: null, latitude: null, longitude: null, altitude: null, owner_id: null, created_at: '', updated_at: null },
-            { id: 0, name: 'UAV-03', status: 'offline', device_type: 'quadcopter', serial_number: '', battery: null, latitude: null, longitude: null, altitude: null, owner_id: null, created_at: '', updated_at: null },
-          ] as Device[]
-          setDevices(fallback)
-          setSelectedUav('UAV-01')
         }
       })
       .catch(() => {
-        const fallback = [
-          { id: 0, name: 'UAV-01', status: 'online', device_type: 'quadcopter', serial_number: '', battery: null, latitude: null, longitude: null, altitude: null, owner_id: null, created_at: '', updated_at: null },
-          { id: 0, name: 'UAV-02', status: 'online', device_type: 'quadcopter', serial_number: '', battery: null, latitude: null, longitude: null, altitude: null, owner_id: null, created_at: '', updated_at: null },
-          { id: 0, name: 'UAV-03', status: 'offline', device_type: 'quadcopter', serial_number: '', battery: null, latitude: null, longitude: null, altitude: null, owner_id: null, created_at: '', updated_at: null },
-        ] as Device[]
-        setDevices(fallback)
-        setSelectedUav('UAV-01')
+        setDevices([])
       })
       .finally(() => setDevicesLoading(false))
   }, [])
 
+  const telemetryRef = useRef<Record<string, TelemetryData>>({})
+  const selectedUavRef = useRef(selectedUav)
+  selectedUavRef.current = selectedUav
+
   const handleWsMessage = useCallback((data: any) => {
     if (data.type === 'telemetry') {
       const d = data.data as TelemetryData
-      setTelemetryMap((prev) => ({ ...prev, [data.uav_id]: d }))
+      const uavId = data.uav_id as string
 
-      // Update trail
-      if (!trailsRef.current[data.uav_id]) trailsRef.current[data.uav_id] = []
-      const trail = trailsRef.current[data.uav_id]
+      // Update telemetry ref and state
+      telemetryRef.current = { ...telemetryRef.current, [uavId]: d }
+      setTelemetryMap({ ...telemetryRef.current })
+
+      // Update trail for this UAV
+      if (!trailsRef.current[uavId]) trailsRef.current[uavId] = []
+      const trail = trailsRef.current[uavId]
       trail.push([d.latitude, d.longitude])
-      if (trail.length > 80) trail.shift()
+      if (trail.length > 200) trail.shift()
 
-      // Rebuild markers & paths for all UAVs
-      setTelemetryMap((latest) => {
-        const newMarkers: MapMarker[] = Object.entries(latest).map(([id, pos]) => ({
-          id, lat: pos.latitude, lng: pos.longitude, label: id, color: 'uav',
-          popup: `<b>${id}</b><br/>高度: ${pos.altitude.toFixed(0)}m<br/>电量: ${pos.battery.toFixed(0)}%`,
-        }))
-        setMarkers(newMarkers)
+      // Only show the SELECTED UAV on the map
+      const sel = selectedUavRef.current
+      const selTel = telemetryRef.current[sel]
+      if (!selTel) {
+        setMarkers([])
+        setPaths([])
+        return
+      }
 
-        const newPaths: MapPath[] = Object.entries(trailsRef.current).map(([id, pts]) => ({
-          id: `trail-${id}`, points: [...pts], color: id === selectedUav ? '#3b82f6' : '#9ca3af', weight: id === selectedUav ? 3 : 2,
-        }))
-        setPaths(newPaths)
-        return latest
-      })
+      // Single marker for selected UAV
+      const newMarkers: MapMarker[] = [{
+        id: sel,
+        lat: selTel.latitude,
+        lng: selTel.longitude,
+        label: sel,
+        color: 'uav',
+        popup: `<b>${sel}</b><br/>高度: ${selTel.altitude.toFixed(0)}m<br/>电量: ${selTel.battery.toFixed(0)}%<br/>模式: ${selTel.flight_mode}`,
+      }]
+      setMarkers(newMarkers)
+
+      // Paths: flight trail + mission waypoints path
+      const newPaths: MapPath[] = []
+
+      // 1. Actual flight trail (blue)
+      const selTrail = trailsRef.current[sel]
+      if (selTrail && selTrail.length > 1) {
+        newPaths.push({
+          id: `trail-${sel}`,
+          points: [...selTrail],
+          color: '#3b82f6',
+          weight: 3,
+        })
+      }
+
+      // 2. Mission planned path (orange dashed) from waypoints
+      const missionWps = selTel.mission_waypoints
+      if (missionWps && missionWps.length >= 2) {
+        newPaths.push({
+          id: `mission-${sel}`,
+          points: missionWps.map((wp) => [wp.lat, wp.lng] as [number, number]),
+          color: '#f97316',
+          weight: 2,
+          dashed: true,
+        })
+      }
+
+      setPaths(newPaths)
     }
-  }, [selectedUav])
+  }, [])
 
   const { connected: _wsConnected } = useWebSocket({
     url: '/api/ws/dashboard',
@@ -121,6 +157,8 @@ export default function Monitor() {
         <div className="flex items-center gap-3">
           {devicesLoading ? (
             <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+          ) : devices.length === 0 ? (
+            <span className="text-sm text-gray-400">请先在设备管理中添加无人机</span>
           ) : devices.map((d) => (
             <button
               key={d.name}
@@ -199,31 +237,31 @@ export default function Monitor() {
 
       {/* Flight commands */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">飞控指令</h3>
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">飞控指令 — {selectedUav || '未选择'}</h3>
         <div className="flex flex-wrap gap-3">
           <button
-            onClick={() => sendFlightCmd(() => flightApi.takeoff(selectedUav || 'UAV-01', 10), '起飞')}
+            onClick={() => sendFlightCmd((id) => flightApi.takeoff(id, 10), '起飞')}
             disabled={cmdLoading}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors disabled:opacity-50"
           >
             <PlaneTakeoff className="w-4 h-4" /> 起飞
           </button>
           <button
-            onClick={() => sendFlightCmd(() => flightApi.land(selectedUav || 'UAV-01'), '降落')}
+            onClick={() => sendFlightCmd((id) => flightApi.land(id), '降落')}
             disabled={cmdLoading}
             className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 transition-colors disabled:opacity-50"
           >
             <PlaneLanding className="w-4 h-4" /> 降落
           </button>
           <button
-            onClick={() => sendFlightCmd(() => flightApi.rtl(selectedUav || 'UAV-01'), '返航')}
+            onClick={() => sendFlightCmd((id) => flightApi.rtl(id), '返航')}
             disabled={cmdLoading}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
             <RotateCcw className="w-4 h-4" /> 返航
           </button>
           <button
-            onClick={() => sendFlightCmd(() => flightApi.hover(selectedUav || 'UAV-01'), '悬停')}
+            onClick={() => sendFlightCmd((id) => flightApi.hover(id), '悬停')}
             disabled={cmdLoading}
             className="flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg text-sm hover:bg-yellow-700 transition-colors disabled:opacity-50"
           >

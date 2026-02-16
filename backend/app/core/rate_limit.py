@@ -58,10 +58,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return True
         return False
 
+    # Paths exempt from rate limiting (high-frequency endpoints)
+    _EXEMPT_PREFIXES = ("/api/ws", "/api/detections/image", "/api/detections/models", "/api/detections/stats", "/api/tracking/frame")
+
     async def dispatch(self, request: Request, call_next) -> Response:
-        # Skip rate limiting for WebSocket and health check
+        # Skip rate limiting for WebSocket, health check, and high-frequency detection endpoints
         path = request.url.path
-        if path.startswith("/api/ws") or path == "/api/health":
+        if path == "/api/health" or path.startswith(self._EXEMPT_PREFIXES):
             return await call_next(request)
 
         ip = self._get_client_ip(request)
